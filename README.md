@@ -1,15 +1,13 @@
-# tap-intacct
+# target-intacct
 
-This is a [Singer](https://singer.io) tap that produces JSON-formatted data
-following the [Singer
-spec](https://github.com/singer-io/getting-started/blob/master/SPEC.md).
+This is a [hotglue](https://hotglue.xyz) target that sends CSV data back to Sage Intacct.
 
 ## Quick Start
 
 1. Install
 
     ```bash
-    pip install git+https://github.com/hotgluexyz/tap-intacct.git
+    pip install git+https://github.com/hotgluexyz/target-intacct.git
     ```
 
 2. Create the config file
@@ -23,7 +21,8 @@ spec](https://github.com/singer-io/getting-started/blob/master/SPEC.md).
         "sender_id": "<Intacct Sender Id>",
         "sender_password": "<Intacct Sender Password>",
         "user_id": "<Intacct User Id>",
-        "user_password": "<Intacct User Password>"
+        "user_password": "<Intacct User Password>",
+        "input_path": "<directory with CSV files to upload>"
     }
     ```
 
@@ -40,17 +39,8 @@ spec](https://github.com/singer-io/getting-started/blob/master/SPEC.md).
 
    The `user_password` is the Sage Intacct User Password.
 
-4. Run the Tap in Discovery Mode
+3. Run the Target
 
     ```bash
-    tap-intacct --config config.json --discover > catalog.json
-    ```
-
-   See the Singer docs on discovery mode
-   [here](https://github.com/singer-io/getting-started/blob/master/docs/DISCOVERY_MODE.md#discovery-mode).
-
-5. Run the Tap in Sync Mode
-
-    ```bash
-    tap-intacct --config config.json --catalog catalog.json
+    target-intacct --config config.json
     ```

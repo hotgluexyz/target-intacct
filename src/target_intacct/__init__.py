@@ -107,7 +107,7 @@ def load_journal_entries(config, accounts, classes, customers):
 
         # Create the entry
         entry = {
-            'JOURNAL': 'APJ', # TODO: DO NOT HARD CODE THIS
+            'JOURNAL': row.get('Journal', 'APJ'),
             'BATCH_DATE': row['Transaction Date'],
             'BATCH_TITLE': je_id,
             'ENTRIES': {
