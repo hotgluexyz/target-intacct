@@ -100,7 +100,7 @@ def load_journal_entries(config, accounts, classes, customers):
 
             # Append the currency if provided
             if row.get('Currency') is not None:
-                entry['CURRENCY'] = row['Currency']
+                je_detail['CURRENCY'] = row['Currency']
 
             # Create the line item
             line_items.append(je_detail)
