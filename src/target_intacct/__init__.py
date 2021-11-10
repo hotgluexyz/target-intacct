@@ -38,17 +38,17 @@ def _get_start(key: str) -> dt.datetime:
     return start
 
 
-def load_journal_entries(config, accounts, classes, customers):
+def load_journal_entries(config, accounts, classes, customers, locations, departments):
     # Get input path
     input_path = f"{config['input_path']}/JournalEntries.csv"
     # Read the passed CSV
     df = pd.read_csv(input_path)
     # Verify it has required columns
     cols = list(df.columns)
-    REQUIRED_COLS = ["Transaction Date", "Journal Entry Id", "Customer Name", "Class", "Account Number", "Account Name", "Posting Type", "Description"]
+    REQUIRED_COLS = ["Transaction Date", "Journal Entry Id", "Class", "Account Number", "Account Name", "Posting Type", "Description"]
 
     if not all(col in cols for col in REQUIRED_COLS):
-        logger.error(f"CSV is mising REQUIRED_COLS. Found={json.dumps(cols)}, Required={json.dumps(REQUIRED_COLS)}")
+        logger.error(f"CSV is missing REQUIRED_COLS. Found={json.dumps(cols)}, Required={json.dumps(REQUIRED_COLS)}")
         sys.exit(1)
 
     journal_entries = []
@@ -89,14 +89,40 @@ def load_journal_entries(config, accounts, classes, customers):
             else:
                 logger.warning(f"Class is missing on Journal Entry {je_id}! Name={class_name}")
 
-            # Get the Quickbooks Customer
-            customer_name = row['Customer Name']
-            customer_ref = next((x['CUSTOMERID'] for x in customers if x['NAME'] == customer_name), None)
+            # Get the Location Ref if Location column exist
+            if 'Location' in row.index:
+                location_name = row['Location']
+                location_ref = next((x['LOCATIONID'] for x in locations if x['NAME'] == location_name), None)
 
-            if customer_ref is not None:
-                je_detail["CUSTOMERID"] = customer_ref
-            else:
-                logger.warning(f"Customer is missing on Journal Entry {je_id}! Name={customer_name}")
+                if location_ref is not None:
+                    je_detail["LOCATION"] = location_ref
+                else:
+                    logger.warning(f"Location is missing on Journal Entry {je_id}! Name={location_name}")
+
+            # Get the Department Ref if Department column exist
+            if 'Department' in row.index:
+                department_name = row['Department']
+                department_ref = next((x['DEPARTMENTID'] for x in departments if x['TITLE'] == department_name), None)
+
+                if department_ref is not None:
+                    je_detail["DEPARTMENT"] = department_ref
+                else:
+                    logger.warning(f"Department is missing on Journal Entry {je_id}! Name={department_name}")
+
+            # Get the Quickbooks Customer
+            if 'Customer ID' in row.index:
+                customer_id = row['Customer ID']
+                if customer_id is not None:
+                    je_detail["CUSTOMERID"] = customer_id
+                else:
+                    logger.warning(f"Customer ID is missing on Journal Entry {je_id}! Name={customer_id}")
+            elif 'Customer Name' in row.index:
+                customer_name = row['Customer Name']
+                customer_ref = next((x['CUSTOMERID'] for x in customers if x['NAME'] == customer_name), None)
+                if customer_ref is not None:
+                    je_detail["CUSTOMERID"] = customer_ref
+                else:
+                    logger.warning(f"Customer is missing on Journal Entry {je_id}! Name={customer_name}")
 
             # Append the currency if provided
             if row.get('Currency') is not None:
@@ -140,9 +166,11 @@ def upload(config, intacct_client) -> None:
     accounts = intacct_client.get_entity(object_type="general_ledger_accounts", fields=["RECORDNO", "ACCOUNTNO", "TITLE"])
     classes = intacct_client.get_entity(object_type="classes", fields=["RECORDNO", "CLASSID", "NAME"])
     customers = intacct_client.get_entity(object_type="customers", fields=["CUSTOMERID", "NAME"])
+    locations = intacct_client.get_entity(object_type="locations", fields=["LOCATIONID", "NAME"])
+    departments = intacct_client.get_entity(object_type="departments", fields=["DEPARTMENTID", "TITLE"])
 
     # Load Journal Entries CSV to post + Convert to Intacct format
-    journal_entries = load_journal_entries(config, accounts, classes, customers)
+    journal_entries = load_journal_entries(config, accounts, classes, customers, locations, departments)
 
     # Post the journal entries to Intacct
     for je in journal_entries:
