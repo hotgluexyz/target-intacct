@@ -26,7 +26,9 @@ INTACCT_OBJECTS = {
     "general_ledger_journal_entry_lines": "GLENTRY",
     "projects": "PROJECT",
     "customers": "CUSTOMER",
-    "classes": "CLASS"
+    "classes": "CLASS",
+    "locations": "LOCATION",
+    "departments": "DEPARTMENT"
 }
 
 GET_BY_DATE_FIELD = "WHENMODIFIED"
