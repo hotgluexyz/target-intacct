@@ -65,8 +65,8 @@ def load_journal_entries(config, accounts, classes, customers, locations, depart
             # Create journal entry line detail
             je_detail = {
                 "DESCRIPTION": row['Description'],
-                "TRX_AMOUNT": str(row['Amount']),
-                "TR_TYPE": 1 if row['Posting Type'] == "DEBIT" else -1
+                "TRX_AMOUNT": str(round(row['Amount'], 2)),
+                "TR_TYPE": 1 if row['Posting Type'].upper() == "DEBIT" else -1
             }
 
             # Get the Account Ref
