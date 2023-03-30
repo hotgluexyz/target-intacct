@@ -1,3 +1,4 @@
+import io
 import json
 import sys
 
@@ -14,6 +15,95 @@ logger = singer.get_logger()
 
 class DependencyException(Exception):
     pass
+
+
+def load_hours_per_week_denominator_entries():
+    # Get input from pipeline
+    input = io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8")
+
+    input_value = {}
+    # For each line of input, if it has data content (is a record) add the line to the dictionary
+    for row in input:
+        try:
+            o = singer.parse_message(row).asdict()
+            logger.info(f"INIT Input Value {o}")
+        except json.decoder.JSONDecodeError:
+            logger.error("Unable to parse:\n{}".format(row))
+            raise
+        message_type = o["type"]
+        if message_type == "RECORD" and not any(
+            value == "" or value is None for value in o["record"].values()
+        ):
+            if not input_value:
+                input_value = o["record"]
+                for key in o["record"].keys():
+                    input_value[key] = [input_value[key]]
+            else:
+                for key in o["record"].keys():
+                    input_value[key].append(o["record"][key])
+    logger.info(f"Final Input Value {input_value}")
+
+    # Convert input from dictionary to DataFrame
+    df = pd.DataFrame(input_value)
+    # Verify it has required columns
+    cols = list(df.columns)
+    REQUIRED_COLS = [
+        "whencreated",
+        "locationid",
+    ]
+
+    if not all(col in cols for col in REQUIRED_COLS):
+        logger.error(
+            f"CSV is missing REQUIRED_COLS. Found={json.dumps(cols)}, Required={json.dumps(REQUIRED_COLS)}"
+        )
+        sys.exit(1)
+
+    journal_entries = []
+    errored = False
+
+    def build_lines(x):
+        logger.info(f"X value {x}...")
+        # Get the journal entry id
+        line_items = []
+
+        # Create line items
+        for index, row in x.iterrows():
+            # Create journal entry line detail
+            je_detail = {
+                "TRX_AMOUNT": str(round(float(row["Capacity"]), 2)),
+                "TR_TYPE": 1,
+            }
+
+            # Get the Account Ref
+
+            je_detail["ACCOUNTNO"] = 98051
+            je_detail["EMPLOYEEID"] = row["employeeid"]
+            je_detail["CLASSID"] = row["BusinessUnit"]
+            je_detail["LOCATION"] = row["locationid"]
+            je_detail["DEPARTMENT"] = row["PracticeAreaID"]
+            # Create the line item
+            line_items.append(je_detail)
+
+        # Create the entry
+        entry = {
+            "JOURNAL": row.get("Journal", "STJ"),
+            "BATCH_DATE": row["whencreated"],
+            "BATCH_TITLE": "HOURS_PER_WEEK_DENOMINATOR",
+            "ENTRIES": {"GLENTRY": line_items},
+        }
+
+        journal_entries.append(entry)
+
+    # Build the entries
+    df.groupby(lambda x: True).apply(build_lines)
+
+    if errored:
+        raise Exception("Building QBO JournalEntries failed!")
+
+    # Print journal entries
+    logger.info(f"Loaded {len(journal_entries)} journal entries to post")
+
+    return journal_entries
 
 
 def load_journal_entries(config, accounts, classes, customers, locations, departments):
@@ -204,9 +294,10 @@ def upload(config, intacct_client) -> None:
     )
 
     # Load Journal Entries CSV to post + Convert to Intacct format
-    journal_entries = load_journal_entries(
-        config, accounts, classes, customers, locations, departments
-    )
+    # journal_entries = load_journal_entries(
+    #     config, accounts, classes, customers, locations, departments
+    # )
+    journal_entries = load_hours_per_week_denominator_entries()
 
     # Post the journal entries to Intacct
     for je in journal_entries:
