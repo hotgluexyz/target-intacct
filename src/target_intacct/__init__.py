@@ -48,8 +48,8 @@ def hours_per_week_denominator_upload(intacct_client, object_name) -> None:
     )
 
     # Post the journal entries to Intacct
-    for je in journal_entries:
-        intacct_client.post_journal(je)
+    for entry in journal_entries:
+        intacct_client.post_journal(entry)
 
     logger.info("Upload completed")
 
@@ -66,9 +66,10 @@ def load_hours_per_week_denominator_entries(
     input_value = get_input()
 
     # Convert input from dictionary to DataFrame
-    df = pd.DataFrame(input_value)
+    data_frame = pd.DataFrame(input_value)
+
     # Verify it has required columns
-    cols = list(df.columns)
+    cols = list(data_frame.columns)
     REQUIRED_COLS = [
         "employeeid",
         "Capacity",
@@ -89,12 +90,15 @@ def load_hours_per_week_denominator_entries(
     journal_entries = []
     errored = False
 
-    def build_lines(x):
-        logger.info(f"X value {x}...")
+    # Build the entries
+    data_frame.groupby(lambda x: True).apply(build_lines)
+
+    def build_lines(data):
         line_items = []
+        nonlocal errored
 
         # Create line items
-        for row in x.iterrows():
+        for row in data.iterrows():
             capacity = row["Capactity"]
             employee_id = row["employeeid"]
             business_unit = row["BusinessUnit"]
@@ -154,9 +158,7 @@ def load_hours_per_week_denominator_entries(
 
         journal_entries.append(entry)
 
-    # Build the entries
-    df.groupby(lambda x: True).apply(build_lines)
-
+    # If an error occurred when loading entries
     if errored:
         raise Exception(
             "Building Hours Per Week Denominator Statistical Journal Entries failed!"
@@ -216,9 +218,9 @@ def load_journal_entries(accounts, classes, locations, departments, object_name)
     input_value = get_input()
 
     # Convert input from dictionary to DataFrame
-    df = pd.DataFrame(input_value)
+    data_frame = pd.DataFrame(input_value)
     # Verify it has required columns
-    cols = list(df.columns)
+    cols = list(data_frame.columns)
     REQUIRED_COLS = [
         "Transaction Date",
         "Class",
@@ -237,14 +239,16 @@ def load_journal_entries(accounts, classes, locations, departments, object_name)
     journal_entries = []
     errored = False
 
-    def build_lines(x):
-        logger.info(f"X value {x}...")
+    # Build the entries
+    data_frame.groupby("Journal Entry Id").apply(build_lines)
 
+    def build_lines(data):
         logger.info(f"Converting {object_name}...")
         line_items = []
+        nonlocal errored
 
         # Create line items
-        for row in x.iterrows():
+        for row in data.iterrows():
             # Create journal entry line detail
             je_detail = {
                 "DESCRIPTION": row["Description"],
@@ -341,11 +345,8 @@ def load_journal_entries(accounts, classes, locations, departments, object_name)
 
         journal_entries.append(entry)
 
-    # Build the entries
-    df.groupby("Journal Entry Id").apply(build_lines)
-
     if errored:
-        raise Exception("Building QBO JournalEntries failed!")
+        raise Exception("Building Financial Journal Entries failed!")
 
     # Print journal entries
     logger.info(f"Loaded {len(journal_entries)} journal entries to post")
@@ -365,22 +366,23 @@ def get_input():
     # For each line of input, if it has data content (is a record) add the line to the dictionary
     for row in input:
         try:
-            o = singer.parse_message(row).asdict()
-            logger.info(f"INIT Input Value {o}")
+            raw_input = singer.parse_message(row).asdict()
+            logger.info(f"INIT Input Value {raw_input}")
         except json.decoder.JSONDecodeError:
             logger.error("Unable to parse:\n{}".format(row))
             raise
-        message_type = o["type"]
+        message_type = raw_input["type"]
         if message_type == "RECORD" and not any(
-            value == "" or value is None for value in o["record"].values()
+            value == "" or value is None for value in raw_input["record"].values()
         ):
+            record = raw_input["record"]
             if not input_value:
-                input_value = o["record"]
-                for key in o["record"].keys():
+                input_value = record
+                for key in record.keys():
                     input_value[key] = [input_value[key]]
             else:
-                for key in o["record"].keys():
-                    input_value[key].append(o["record"][key])
+                for key in record.keys():
+                    input_value[key].append(record[key])
     logger.info(f"Final Input Value {input_value}")
     return input_value
 
