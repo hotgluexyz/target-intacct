@@ -17,31 +17,52 @@ class DependencyException(Exception):
     pass
 
 
+"""
+Uploads Hours Per Week Denominator Statistical Journals to Intacct
+
+Retrieves objects from Intacct API for verifying input data
+Calls load_entries method
+Sends entries for uploading to Intacct
+"""
+
+
+def hours_per_week_denominator_upload(intacct_client) -> None:
+    logger.info("Starting upload.")
+
+    # Load Active Classes, Customers, Accounts
+    accounts = intacct_client.get_entity(
+        object_type="general_ledger_accounts", fields=["RECORDNO", "ACCOUNTNO", "TITLE"]
+    )
+    classes = intacct_client.get_entity(
+        object_type="classes", fields=["RECORDNO", "CLASSID", "NAME"]
+    )
+    customers = intacct_client.get_entity(
+        object_type="customers", fields=["CUSTOMERID", "NAME"]
+    )
+    locations = intacct_client.get_entity(
+        object_type="locations", fields=["LOCATIONID", "NAME"]
+    )
+    departments = intacct_client.get_entity(
+        object_type="departments", fields=["DEPARTMENTID", "TITLE"]
+    )
+
+    journal_entries = load_hours_per_week_denominator_entries()
+
+    # Post the journal entries to Intacct
+    for je in journal_entries:
+        intacct_client.post_journal(je)
+
+    logger.info("Upload completed")
+
+
+"""
+Loads inputted data into Hours Per Week Denominator Statistical Journal Entries
+"""
+
+
 def load_hours_per_week_denominator_entries():
     # Get input from pipeline
-    input = io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8")
-
-    input_value = {}
-    # For each line of input, if it has data content (is a record) add the line to the dictionary
-    for row in input:
-        try:
-            o = singer.parse_message(row).asdict()
-            logger.info(f"INIT Input Value {o}")
-        except json.decoder.JSONDecodeError:
-            logger.error("Unable to parse:\n{}".format(row))
-            raise
-        message_type = o["type"]
-        if message_type == "RECORD" and not any(
-            value == "" or value is None for value in o["record"].values()
-        ):
-            if not input_value:
-                input_value = o["record"]
-                for key in o["record"].keys():
-                    input_value[key] = [input_value[key]]
-            else:
-                for key in o["record"].keys():
-                    input_value[key].append(o["record"][key])
-    logger.info(f"Final Input Value {input_value}")
+    input_value = get_input()
 
     # Convert input from dictionary to DataFrame
     df = pd.DataFrame(input_value)
@@ -63,11 +84,11 @@ def load_hours_per_week_denominator_entries():
 
     def build_lines(x):
         logger.info(f"X value {x}...")
-        # Get the journal entry id
+
         line_items = []
 
         # Create line items
-        for index, row in x.iterrows():
+        for row in x.iterrows():
             # Create journal entry line detail
             je_detail = {
                 "TRX_AMOUNT": str(round(float(row["Capacity"]), 2)),
@@ -106,11 +127,58 @@ def load_hours_per_week_denominator_entries():
     return journal_entries
 
 
-def load_journal_entries(config, accounts, classes, customers, locations, departments):
-    # Get input path
-    input_path = f"{config['input_path']}/JournalEntries.csv"
-    # Read the passed CSV
-    df = pd.read_csv(input_path)
+"""
+Uploads Financial Journals to Intacct
+
+Retrieves objects from Intacct API for verifying input data
+Calls load_entries method
+Sends entries for uploading to Intacct
+"""
+
+
+def journal_upload(intacct_client, object_name) -> None:
+    logger.info("Starting upload.")
+
+    # Load Active Classes, Customers, Accounts
+    accounts = intacct_client.get_entity(
+        object_type="general_ledger_accounts", fields=["RECORDNO", "ACCOUNTNO", "TITLE"]
+    )
+    classes = intacct_client.get_entity(
+        object_type="classes", fields=["RECORDNO", "CLASSID", "NAME"]
+    )
+    customers = intacct_client.get_entity(
+        object_type="customers", fields=["CUSTOMERID", "NAME"]
+    )
+    locations = intacct_client.get_entity(
+        object_type="locations", fields=["LOCATIONID", "NAME"]
+    )
+    departments = intacct_client.get_entity(
+        object_type="departments", fields=["DEPARTMENTID", "TITLE"]
+    )
+
+    # Load Journal Entries CSV to post + Convert to Intacct format
+    journal_entries = load_journal_entries(
+        accounts, classes, customers, locations, departments, object_name
+    )
+
+    # Post the journal entries to Intacct
+    for je in journal_entries:
+        intacct_client.post_journal(je)
+
+    logger.info("Upload completed")
+
+
+"""
+Loads inputted data into Financial Journal Entries
+"""
+
+
+def load_journal_entries(accounts, classes, locations, departments, object_name):
+    # Get input from pipeline
+    input_value = get_input()
+
+    # Convert input from dictionary to DataFrame
+    df = pd.DataFrame(input_value)
     # Verify it has required columns
     cols = list(df.columns)
     REQUIRED_COLS = [
@@ -133,9 +201,9 @@ def load_journal_entries(config, accounts, classes, customers, locations, depart
     errored = False
 
     def build_lines(x):
-        # Get the journal entry id
-        je_id = x["Journal Entry Id"].iloc[0]
-        logger.info(f"Converting {je_id}...")
+        logger.info(f"X value {x}...")
+
+        logger.info(f"Converting {object_name}...")
         line_items = []
 
         # Create line items
@@ -143,7 +211,7 @@ def load_journal_entries(config, accounts, classes, customers, locations, depart
             # Create journal entry line detail
             je_detail = {
                 "DESCRIPTION": row["Description"],
-                "TRX_AMOUNT": str(round(row["Amount"], 2)),
+                "TRX_AMOUNT": str(round(float(row["Amount"]), 2)),
                 "TR_TYPE": 1 if row["Posting Type"].upper() == "DEBIT" else -1,
             }
 
@@ -151,7 +219,7 @@ def load_journal_entries(config, accounts, classes, customers, locations, depart
             acct_num = (
                 str(int(row["Account Number"]))
                 if row["Account Number"] is not None
-                and not math.isnan(row["Account Number"])
+                and not math.isnan(int(row["Account Number"]))
                 else None
             )
             acct_name = row["Account Name"]
@@ -168,7 +236,7 @@ def load_journal_entries(config, accounts, classes, customers, locations, depart
             else:
                 errored = True
                 logger.error(
-                    f"Account is missing on Journal Entry {je_id}! Name={acct_name} No={acct_num}"
+                    f"Account is missing on Journal Entry {object_name}! Name={acct_name} No={acct_num}"
                 )
 
             # Get the Class Ref
@@ -181,7 +249,7 @@ def load_journal_entries(config, accounts, classes, customers, locations, depart
                 je_detail["CLASSID"] = class_ref
             else:
                 logger.warning(
-                    f"Class is missing on Journal Entry {je_id}! Name={class_name}"
+                    f"Class is missing on Journal Entry {object_name}! Name={class_name}"
                 )
 
             # Get the Location Ref if Location column exist
@@ -196,7 +264,7 @@ def load_journal_entries(config, accounts, classes, customers, locations, depart
                     je_detail["LOCATION"] = location_ref
                 else:
                     logger.warning(
-                        f"Location is missing on Journal Entry {je_id}! Name={location_name}"
+                        f"Location is missing on Journal Entry {object_name}! Name={location_name}"
                     )
 
             # Get the Department Ref if Department column exist
@@ -215,29 +283,7 @@ def load_journal_entries(config, accounts, classes, customers, locations, depart
                     je_detail["DEPARTMENT"] = department_ref
                 else:
                     logger.warning(
-                        f"Department is missing on Journal Entry {je_id}! Name={department_name}"
-                    )
-
-            # Get the Quickbooks Customer
-            if "Customer ID" in row.index:
-                customer_id = row["Customer ID"]
-                if customer_id is not None:
-                    je_detail["CUSTOMERID"] = customer_id
-                else:
-                    logger.warning(
-                        f"Customer ID is missing on Journal Entry {je_id}! Name={customer_id}"
-                    )
-            elif "Customer Name" in row.index:
-                customer_name = row["Customer Name"]
-                customer_ref = next(
-                    (x["CUSTOMERID"] for x in customers if x["NAME"] == customer_name),
-                    None,
-                )
-                if customer_ref is not None:
-                    je_detail["CUSTOMERID"] = customer_ref
-                else:
-                    logger.warning(
-                        f"Customer is missing on Journal Entry {je_id}! Name={customer_name}"
+                        f"Department is missing on Journal Entry {object_name}! Name={department_name}"
                     )
 
             # Append the currency if provided
@@ -249,9 +295,10 @@ def load_journal_entries(config, accounts, classes, customers, locations, depart
 
         # Create the entry
         entry = {
-            "JOURNAL": row.get("Journal", "APJ"),
+            "JOURNAL": row.get("Journal", "PYRJ"),
             "BATCH_DATE": row["Transaction Date"],
-            "BATCH_TITLE": je_id,
+            "REVERSEDDATE": row["Transaction Date"],
+            "BATCH_TITLE": object_name,
             "ENTRIES": {"GLENTRY": line_items},
         }
 
@@ -269,41 +316,36 @@ def load_journal_entries(config, accounts, classes, customers, locations, depart
     return journal_entries
 
 
-def upload(config, intacct_client) -> None:
-    """
-    Syncs all streams selected in Context.catalog.
-    Writes out state file for events stream once sync completed.
-    """
-    logger.info("Starting upload.")
+"""
+Read the input from the pipeline and return a dictionary of the Records
+"""
 
-    # Load Active Classes, Customers, Accounts
-    accounts = intacct_client.get_entity(
-        object_type="general_ledger_accounts", fields=["RECORDNO", "ACCOUNTNO", "TITLE"]
-    )
-    classes = intacct_client.get_entity(
-        object_type="classes", fields=["RECORDNO", "CLASSID", "NAME"]
-    )
-    customers = intacct_client.get_entity(
-        object_type="customers", fields=["CUSTOMERID", "NAME"]
-    )
-    locations = intacct_client.get_entity(
-        object_type="locations", fields=["LOCATIONID", "NAME"]
-    )
-    departments = intacct_client.get_entity(
-        object_type="departments", fields=["DEPARTMENTID", "TITLE"]
-    )
 
-    # Load Journal Entries CSV to post + Convert to Intacct format
-    # journal_entries = load_journal_entries(
-    #     config, accounts, classes, customers, locations, departments
-    # )
-    journal_entries = load_hours_per_week_denominator_entries()
+def get_input():
+    input = io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8")
+    input_value = {}
 
-    # Post the journal entries to Intacct
-    for je in journal_entries:
-        intacct_client.post_journal(je)
-
-    logger.info("Upload completed")
+    # For each line of input, if it has data content (is a record) add the line to the dictionary
+    for row in input:
+        try:
+            o = singer.parse_message(row).asdict()
+            logger.info(f"INIT Input Value {o}")
+        except json.decoder.JSONDecodeError:
+            logger.error("Unable to parse:\n{}".format(row))
+            raise
+        message_type = o["type"]
+        if message_type == "RECORD" and not any(
+            value == "" or value is None for value in o["record"].values()
+        ):
+            if not input_value:
+                input_value = o["record"]
+                for key in o["record"].keys():
+                    input_value[key] = [input_value[key]]
+            else:
+                for key in o["record"].keys():
+                    input_value[key].append(o["record"][key])
+    logger.info(f"Final Input Value {input_value}")
+    return input_value
 
 
 @singer.utils.handle_top_exception(logger)
@@ -322,8 +364,12 @@ def main() -> None:
         headers={"User-Agent": config["user_agent"]} if "user_agent" in config else {},
     )
 
-    # Upload the data
-    upload(config, intacct_client)
+    object_name = config["object_name"]
+
+    if object_name == "journal":
+        journal_upload(intacct_client, object_name)
+    elif object_name == "hours_per_week_denominator":
+        hours_per_week_denominator_upload(intacct_client, object_name)
 
 
 if __name__ == "__main__":
