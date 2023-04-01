@@ -26,27 +26,26 @@ Sends entries for uploading to Intacct
 """
 
 
-def hours_per_week_denominator_upload(intacct_client) -> None:
+def hours_per_week_denominator_upload(intacct_client, object_name) -> None:
     logger.info("Starting upload.")
 
-    # Load Active Classes, Customers, Accounts
-    accounts = intacct_client.get_entity(
-        object_type="general_ledger_accounts", fields=["RECORDNO", "ACCOUNTNO", "TITLE"]
+    # Load Current Data in Intacct for input verification
+    employee_ids = intacct_client.get_entity(
+        object_type="classes", fields=["RECORDNO", "EMPLOYEEID"]
     )
-    classes = intacct_client.get_entity(
-        object_type="classes", fields=["RECORDNO", "CLASSID", "NAME"]
+    business_units = intacct_client.get_entity(
+        object_type="classes", fields=["RECORDNO", "CLASSID"]
     )
-    customers = intacct_client.get_entity(
-        object_type="customers", fields=["CUSTOMERID", "NAME"]
+    location_ids = intacct_client.get_entity(
+        object_type="locations", fields=["RECORDNO", "LOCATIONID"]
     )
-    locations = intacct_client.get_entity(
-        object_type="locations", fields=["LOCATIONID", "NAME"]
-    )
-    departments = intacct_client.get_entity(
-        object_type="departments", fields=["DEPARTMENTID", "TITLE"]
+    practice_area_ids = intacct_client.get_entity(
+        object_type="departments", fields=["DEPARTMENTID"]
     )
 
-    journal_entries = load_hours_per_week_denominator_entries()
+    journal_entries = load_hours_per_week_denominator_entries(
+        employee_ids, business_units, location_ids, practice_area_ids, object_name
+    )
 
     # Post the journal entries to Intacct
     for je in journal_entries:
@@ -60,7 +59,9 @@ Loads inputted data into Hours Per Week Denominator Statistical Journal Entries
 """
 
 
-def load_hours_per_week_denominator_entries():
+def load_hours_per_week_denominator_entries(
+    employee_ids, business_units, location_ids, practice_area_ids, object_name
+):
     # Get input from pipeline
     input_value = get_input()
 
@@ -69,8 +70,14 @@ def load_hours_per_week_denominator_entries():
     # Verify it has required columns
     cols = list(df.columns)
     REQUIRED_COLS = [
-        "whencreated",
+        "employeeid",
+        "Capacity",
+        "BudgetedBillable",
         "locationid",
+        "PracticeAreaID",
+        "BusinessUnit",
+        "contact_name",
+        "whencreated",
     ]
 
     if not all(col in cols for col in REQUIRED_COLS):
@@ -84,24 +91,56 @@ def load_hours_per_week_denominator_entries():
 
     def build_lines(x):
         logger.info(f"X value {x}...")
-
         line_items = []
 
         # Create line items
         for row in x.iterrows():
+            capacity = row["Capactity"]
+            employee_id = row["employeeid"]
+            business_unit = row["BusinessUnit"]
+            location_id = row["locationid"]
+            practice_area_id = row["PracticeAreaID"]
+
             # Create journal entry line detail
             je_detail = {
-                "TRX_AMOUNT": str(round(float(row["Capacity"]), 2)),
+                "TRX_AMOUNT": str(round(float(capacity), 2)),
                 "TR_TYPE": 1,
+                "ACCOUNTNO": 98051,
             }
 
-            # Get the Account Ref
+            # Check if values are populated and exist in Intacct then add the entry details
+            if employee_id is not None and employee_id in employee_ids:
+                je_detail["EMPLOYEEID"] = employee_id
+            else:
+                errored = True
+                logger.error(
+                    f"Employee ID {employee_id} is missing in Intacct {object_name}!"
+                )
 
-            je_detail["ACCOUNTNO"] = 98051
-            je_detail["EMPLOYEEID"] = row["employeeid"]
-            je_detail["CLASSID"] = row["BusinessUnit"]
-            je_detail["LOCATION"] = row["locationid"]
-            je_detail["DEPARTMENT"] = row["PracticeAreaID"]
+            if business_unit is not None and business_unit in business_units:
+                je_detail["CLASSID"] = business_unit
+            else:
+                errored = True
+                logger.error(
+                    f"Buisness Unit (Class ID) {business_unit} is missing in Intacct {object_name}!"
+                )
+
+            if location_id is not None and location_id in location_ids:
+                je_detail["LOCATION"] = location_id
+            else:
+                errored = True
+                logger.error(
+                    f"Location ID {location_id} is missing in Intacct {object_name}!"
+                )
+
+            if practice_area_id is not None and practice_area_id in practice_area_ids:
+                je_detail["DEPARTMENT"] = practice_area_id
+            else:
+                errored = True
+                logger.error(
+                    f"Practice Area ID (Department) {practice_area_id} is missing in Intacct {object_name}!"
+                )
+
             # Create the line item
             line_items.append(je_detail)
 
@@ -109,7 +148,7 @@ def load_hours_per_week_denominator_entries():
         entry = {
             "JOURNAL": row.get("Journal", "STJ"),
             "BATCH_DATE": row["whencreated"],
-            "BATCH_TITLE": "HOURS_PER_WEEK_DENOMINATOR",
+            "BATCH_TITLE": object_name,
             "ENTRIES": {"GLENTRY": line_items},
         }
 
@@ -119,7 +158,9 @@ def load_hours_per_week_denominator_entries():
     df.groupby(lambda x: True).apply(build_lines)
 
     if errored:
-        raise Exception("Building QBO JournalEntries failed!")
+        raise Exception(
+            "Building Hours Per Week Denominator Statistical Journal Entries failed!"
+        )
 
     # Print journal entries
     logger.info(f"Loaded {len(journal_entries)} journal entries to post")
@@ -146,9 +187,6 @@ def journal_upload(intacct_client, object_name) -> None:
     classes = intacct_client.get_entity(
         object_type="classes", fields=["RECORDNO", "CLASSID", "NAME"]
     )
-    customers = intacct_client.get_entity(
-        object_type="customers", fields=["CUSTOMERID", "NAME"]
-    )
     locations = intacct_client.get_entity(
         object_type="locations", fields=["LOCATIONID", "NAME"]
     )
@@ -158,7 +196,7 @@ def journal_upload(intacct_client, object_name) -> None:
 
     # Load Journal Entries CSV to post + Convert to Intacct format
     journal_entries = load_journal_entries(
-        accounts, classes, customers, locations, departments, object_name
+        accounts, classes, locations, departments, object_name
     )
 
     # Post the journal entries to Intacct
@@ -183,7 +221,6 @@ def load_journal_entries(accounts, classes, locations, departments, object_name)
     cols = list(df.columns)
     REQUIRED_COLS = [
         "Transaction Date",
-        "Journal Entry Id",
         "Class",
         "Account Number",
         "Account Name",
