@@ -30,6 +30,7 @@ INTACCT_OBJECTS = {
     "classes": "CLASS",
     "locations": "LOCATION",
     "departments": "DEPARTMENT",
+    "employees": "EMPLOYEE",
 }
 
 GET_BY_DATE_FIELD = "WHENMODIFIED"

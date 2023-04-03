@@ -31,18 +31,19 @@ def hours_per_week_denominator_upload(intacct_client, object_name) -> None:
 
     # Load Current Data in Intacct for input verification
     employee_ids = intacct_client.get_entity(
-        object_type="classes", fields=["RECORDNO", "EMPLOYEEID"]
+        object_type="employees", fields=["EMPLOYEEID"]
     )
     business_units = intacct_client.get_entity(
-        object_type="classes", fields=["RECORDNO", "CLASSID"]
+        object_type="classes", fields=["CLASSID"]
     )
     location_ids = intacct_client.get_entity(
-        object_type="locations", fields=["RECORDNO", "LOCATIONID"]
+        object_type="locations", fields=["LOCATIONID"]
     )
     practice_area_ids = intacct_client.get_entity(
         object_type="departments", fields=["DEPARTMENTID"]
     )
 
+    # Journal Entries to be uploaded
     journal_entries = load_hours_per_week_denominator_entries(
         employee_ids, business_units, location_ids, practice_area_ids, object_name
     )
@@ -90,17 +91,14 @@ def load_hours_per_week_denominator_entries(
     journal_entries = []
     errored = False
 
-    # Build the entries
-    data_frame.groupby(lambda x: True).apply(build_lines)
-
     def build_lines(data):
         line_items = []
         nonlocal errored
 
         # Create line items
-        for row in data.iterrows():
-            capacity = row["Capactity"]
+        for index, row in data.iterrows():
             employee_id = row["employeeid"]
+            capacity = row["Capacity"]
             business_unit = row["BusinessUnit"]
             location_id = row["locationid"]
             practice_area_id = row["PracticeAreaID"]
@@ -113,7 +111,10 @@ def load_hours_per_week_denominator_entries(
             }
 
             # Check if values are populated and exist in Intacct then add the entry details
-            if employee_id is not None and employee_id in employee_ids:
+            if employee_id is not None and next(
+                (True for x in employee_ids if x["EMPLOYEEID"] == str(employee_id)),
+                False,
+            ):
                 je_detail["EMPLOYEEID"] = employee_id
             else:
                 errored = True
@@ -121,7 +122,9 @@ def load_hours_per_week_denominator_entries(
                     f"Employee ID {employee_id} is missing in Intacct {object_name}!"
                 )
 
-            if business_unit is not None and business_unit in business_units:
+            if business_unit is not None and next(
+                (True for x in business_units if x["CLASSID"] == business_unit), False
+            ):
                 je_detail["CLASSID"] = business_unit
             else:
                 errored = True
@@ -129,7 +132,9 @@ def load_hours_per_week_denominator_entries(
                     f"Buisness Unit (Class ID) {business_unit} is missing in Intacct {object_name}!"
                 )
 
-            if location_id is not None and location_id in location_ids:
+            if location_id is not None and next(
+                (True for x in location_ids if x["LOCATIONID"] == location_id), False
+            ):
                 je_detail["LOCATION"] = location_id
             else:
                 errored = True
@@ -137,7 +142,14 @@ def load_hours_per_week_denominator_entries(
                     f"Location ID {location_id} is missing in Intacct {object_name}!"
                 )
 
-            if practice_area_id is not None and practice_area_id in practice_area_ids:
+            if practice_area_id is not None and next(
+                (
+                    True
+                    for x in practice_area_ids
+                    if x["DEPARTMENTID"] == practice_area_id
+                ),
+                False,
+            ):
                 je_detail["DEPARTMENT"] = practice_area_id
             else:
                 errored = True
@@ -152,11 +164,14 @@ def load_hours_per_week_denominator_entries(
         entry = {
             "JOURNAL": row.get("Journal", "STJ"),
             "BATCH_DATE": row["whencreated"],
-            "BATCH_TITLE": object_name,
+            "BATCH_TITLE": object_name.upper(),
             "ENTRIES": {"GLENTRY": line_items},
         }
 
         journal_entries.append(entry)
+
+    # Build the entries
+    data_frame.groupby(lambda x: True).apply(build_lines)
 
     # If an error occurred when loading entries
     if errored:
@@ -239,16 +254,13 @@ def load_journal_entries(accounts, classes, locations, departments, object_name)
     journal_entries = []
     errored = False
 
-    # Build the entries
-    data_frame.groupby("Journal Entry Id").apply(build_lines)
-
     def build_lines(data):
         logger.info(f"Converting {object_name}...")
         line_items = []
         nonlocal errored
 
         # Create line items
-        for row in data.iterrows():
+        for index, row in data.iterrows():
             # Create journal entry line detail
             je_detail = {
                 "DESCRIPTION": row["Description"],
@@ -345,6 +357,9 @@ def load_journal_entries(accounts, classes, locations, departments, object_name)
 
         journal_entries.append(entry)
 
+    # Build the entries
+    data_frame.groupby("Journal Entry Id").apply(build_lines)
+
     if errored:
         raise Exception("Building Financial Journal Entries failed!")
 
@@ -367,7 +382,6 @@ def get_input():
     for row in input:
         try:
             raw_input = singer.parse_message(row).asdict()
-            logger.info(f"INIT Input Value {raw_input}")
         except json.decoder.JSONDecodeError:
             logger.error("Unable to parse:\n{}".format(row))
             raise
@@ -383,7 +397,6 @@ def get_input():
             else:
                 for key in record.keys():
                     input_value[key].append(record[key])
-    logger.info(f"Final Input Value {input_value}")
     return input_value
 
 
