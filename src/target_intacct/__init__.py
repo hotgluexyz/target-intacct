@@ -6,6 +6,7 @@ import math
 import pandas as pd
 
 import singer
+from datetime import datetime
 
 from .client import get_client
 from .const import DEFAULT_API_URL, REQUIRED_CONFIG_KEYS
@@ -15,6 +16,11 @@ logger = singer.get_logger()
 
 class DependencyException(Exception):
     pass
+
+
+def format_date_to_intacct(date_string):
+    date_object = datetime.fromisoformat(date_string)
+    return date_object.strftime("%m/%d/%Y")
 
 
 """
@@ -105,7 +111,7 @@ def load_hours_per_week_denominator_entries(
 
             # Create journal entry line detail
             je_detail = {
-                "TRX_AMOUNT": str(round(float(capacity), 2)),
+                "AMOUNT": str(round(float(capacity), 2)),
                 "TR_TYPE": 1,
                 "ACCOUNTNO": 98051,
             }
@@ -163,7 +169,7 @@ def load_hours_per_week_denominator_entries(
         # Create the entry
         entry = {
             "JOURNAL": row.get("Journal", "STJ"),
-            "BATCH_DATE": row["whencreated"],
+            "BATCH_DATE": format_date_to_intacct(row["whencreated"]),
             "BATCH_TITLE": object_name.upper(),
             "ENTRIES": {"GLENTRY": line_items},
         }
