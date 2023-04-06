@@ -25,6 +25,8 @@ from target_intacct.exceptions import (
 
 from .const import INTACCT_OBJECTS
 
+logger = singer.get_logger()
+
 
 class SageIntacctSDK:
     """The base class for all API classes."""
@@ -38,6 +40,7 @@ class SageIntacctSDK:
         user_id: str,
         user_password: str,
         headers: Dict,
+        entity_id: str,
     ):
         self.__api_url = api_url
         self.__company_id = company_id
@@ -46,6 +49,7 @@ class SageIntacctSDK:
         self.__user_id = user_id
         self.__user_password = user_password
         self.__headers = headers
+        self.entity_id = entity_id
 
         """
         Initialize connection to Sage Intacct
@@ -60,9 +64,12 @@ class SageIntacctSDK:
             user_id=self.__user_id,
             company_id=self.__company_id,
             user_password=self.__user_password,
+            entity_id=self.entity_id,
         )
 
-    def _set_session_id(self, user_id: str, company_id: str, user_password: str):
+    def _set_session_id(
+        self, user_id: str, company_id: str, user_password: str, entity_id: str
+    ):
         """
         Sets the session id for APIs
         """
@@ -84,6 +91,7 @@ class SageIntacctSDK:
                             "userid": user_id,
                             "companyid": company_id,
                             "password": user_password,
+                            "locationid": entity_id,
                         }
                     },
                     "content": {
@@ -122,6 +130,7 @@ class SageIntacctSDK:
         api_headers = {"content-type": "application/xml"}
         api_headers.update(self.__headers)
         body = xmltodict.unparse(dict_body)
+        logger.info(body)
         response = requests.post(api_url, headers=api_headers, data=body)
 
         parsed_xml = xmltodict.parse(response.text)
@@ -369,6 +378,7 @@ def get_client(
     user_id: str,
     user_password: str,
     headers: Dict,
+    entity_id: str,
 ) -> SageIntacctSDK:
     """
     Initializes and returns a SageIntacctSDK object.
@@ -381,6 +391,7 @@ def get_client(
         user_id=user_id,
         user_password=user_password,
         headers=headers,
+        entity_id=entity_id,
     )
 
     return connection

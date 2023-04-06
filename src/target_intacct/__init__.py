@@ -420,6 +420,7 @@ def main() -> None:
         user_id=config["user_id"],
         user_password=config["user_password"],
         headers={"User-Agent": config["user_agent"]} if "user_agent" in config else {},
+        entity_id=config["entity_id"],
     )
 
     object_name = config["object_name"]

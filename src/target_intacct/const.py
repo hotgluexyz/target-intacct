@@ -5,6 +5,7 @@ REQUIRED_CONFIG_KEYS = [
     "user_id",
     "user_password",
     "object_name",
+    "entity_id",
 ]
 
 KEY_PROPERTIES = {
