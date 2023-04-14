@@ -25,8 +25,6 @@ from target_intacct.exceptions import (
 
 from .const import INTACCT_OBJECTS
 
-logger = singer.get_logger()
-
 
 class SageIntacctSDK:
     """The base class for all API classes."""
@@ -130,7 +128,6 @@ class SageIntacctSDK:
         api_headers = {"content-type": "application/xml"}
         api_headers.update(self.__headers)
         body = xmltodict.unparse(dict_body)
-        logger.info(body)
         response = requests.post(api_url, headers=api_headers, data=body)
 
         parsed_xml = xmltodict.parse(response.text)
