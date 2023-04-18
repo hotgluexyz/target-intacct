@@ -35,7 +35,9 @@ def get_input():
             logger.error("Unable to parse:\n{}".format(row))
             raise
         message_type = raw_input["type"]
-        if message_type == "RECORD":
+        if message_type == "RECORD" and not any(
+            value == "" or value is None for value in raw_input["record"].values()
+        ):
             record = raw_input["record"]
             if not input_value:
                 input_value = record
