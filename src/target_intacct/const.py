@@ -8,16 +8,6 @@ REQUIRED_CONFIG_KEYS = [
     "entity_id",
 ]
 
-KEY_PROPERTIES = {
-    "accounts_payable_bills": ["RECORDNO"],
-    "accounts_payable_vendors": ["VENDORID"],
-    "general_ledger_accounts": ["RECORDNO"],
-    "general_ledger_details": ["RECORDNO"],
-    "general_ledger_journal_entries": ["RECORDNO"],
-    "general_ledger_journal_entry_lines": ["RECORDNO"],
-    "projects": ["RECORDNO"],
-}
-
 # List of available objects with their internal object-reference/endpoint name.
 INTACCT_OBJECTS = {
     "accounts_payable_bills": "APBILL",
@@ -33,7 +23,5 @@ INTACCT_OBJECTS = {
     "departments": "DEPARTMENT",
     "employees": "EMPLOYEE",
 }
-
-GET_BY_DATE_FIELD = "WHENMODIFIED"
 
 DEFAULT_API_URL = "https://api.intacct.com/ia/xml/xmlgw.phtml"

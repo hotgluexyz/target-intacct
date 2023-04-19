@@ -2,7 +2,7 @@ import singer
 
 from .client import get_client
 from .const import DEFAULT_API_URL, REQUIRED_CONFIG_KEYS
-from .hours_per_week_denominator import hours_per_week_denominator_upload
+from .statistical_journal import statistical_journal_upload
 from .payroll_journal import journal_upload
 
 logger = singer.get_logger()
@@ -31,10 +31,12 @@ def main() -> None:
 
     object_name = config["object_name"]
 
-    if object_name == "journal":
+    if object_name == "payroll_journal":
         journal_upload(intacct_client, object_name)
-    elif object_name == "hours_per_week_denominator":
-        hours_per_week_denominator_upload(intacct_client, object_name)
+    elif object_name == "statistical_journal":
+        statistical_journal_upload(intacct_client, object_name)
+    else:
+        raise Exception("Valid Object Name Not Found")
 
 
 if __name__ == "__main__":

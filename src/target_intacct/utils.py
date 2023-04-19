@@ -8,22 +8,16 @@ import singer
 
 logger = singer.get_logger()
 
-"""
-Format inputted datetime to Intacct standard
-"""
-
 
 def format_date_to_intacct(date_string):
+    """Format inputted datetime to Intacct standard."""
+
     date_object = datetime.fromisoformat(date_string)
     return date_object.strftime("%m/%d/%Y")
 
 
-"""
-Read the input from the pipeline and return a dictionary of the Records
-"""
-
-
 def get_input():
+    """Read the input from the pipeline and return a dictionary of the Records."""
     input = io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8")
     input_value = {}
 
@@ -40,17 +34,11 @@ def get_input():
         ):
             record = raw_input["record"]
             if not input_value:
-                input_value = record
                 input_value = {key: [value] for key, value in record.items()}
             else:
                 for key, value in record.items():
                     input_value[key].append(value)
     return input_value
-
-
-"""
-Creates journal entries for statistical and financial journals
-"""
 
 
 def set_journal_entry_value(
@@ -60,6 +48,7 @@ def set_journal_entry_value(
     search_value,
     object_name: str,
 ) -> bool:
+    """Creates journal entries for statistical and financial journals."""
     errored = False
     if search_value and any(
         filter(lambda o: o.get(field_name) == str(search_value), intacct_values)

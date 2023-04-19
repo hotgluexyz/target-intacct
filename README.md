@@ -12,4 +12,4 @@ A custom Meltano target that sends data into Intacct.
     - In the root folder run `pip install .`
 
 3. Testing
-    - The target is run through the [BigQuery-Intacct-Sync](https://github.com/FreshConsulting/bigquery-intacct-sync) pipeline, instructions on how to test local changes are listed in the *Running the Pipeline Locally* section of the README 
+    - The target is utilized as a component of [Meltano](https://docs.meltano.com/getting-started/meltano-at-a-glance) pipelines so local changes can be tested by running a pipeline with the target installed as a loader. 

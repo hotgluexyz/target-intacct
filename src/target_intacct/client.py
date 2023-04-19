@@ -49,8 +49,8 @@ class SageIntacctSDK:
         self.__headers = headers
         self.entity_id = entity_id
 
-        """
-        Initialize connection to Sage Intacct
+        """Initialize connection to Sage Intacct.
+
         :param sender_id: Sage Intacct sender id
         :param sender_password: Sage Intacct sender password
         :param user_id: Sage Intacct user id
@@ -68,9 +68,7 @@ class SageIntacctSDK:
     def _set_session_id(
         self, user_id: str, company_id: str, user_password: str, entity_id: str
     ):
-        """
-        Sets the session id for APIs
-        """
+        """Sets the session id for APIs."""
 
         timestamp = dt.datetime.now()
         dict_body = {
@@ -114,8 +112,7 @@ class SageIntacctSDK:
 
     @singer.utils.ratelimit(10, 1)
     def _post_request(self, dict_body: dict, api_url: str) -> Dict:
-        """
-        Create a HTTP post request.
+        """Create a HTTP post request.
 
         Parameters:
             dict_body (dict): HTTP POST body data for the wanted API.
@@ -179,8 +176,7 @@ class SageIntacctSDK:
         raise SageIntacctSDKError("Error: {0}".format(parsed_response))
 
     def support_id_msg(self, errormessages) -> Union[List, Dict]:
-        """
-        Finds whether the error messages is list / dict and assign type and error assignment.
+        """Finds whether the error messages is list / dict and assign type and error assignment.
 
         Parameters:
             errormessages (dict / list): error message received from Sage Intacct.
@@ -199,8 +195,7 @@ class SageIntacctSDK:
         return error
 
     def decode_support_id(self, errormessages: Union[List, Dict]) -> Union[List, Dict]:
-        """
-        Decodes Support ID.
+        """Decodes Support ID.
 
         Parameters:
             errormessages (dict / list): error message received from Sage Intacct.
@@ -226,8 +221,7 @@ class SageIntacctSDK:
         return errormessages
 
     def format_and_send_request(self, data: Dict) -> Union[List, Dict]:
-        """
-        Format data accordingly to convert them to xml.
+        """Format data accordingly to convert them to xml.
 
         Parameters:
             data (dict): HTTP POST body data for the wanted API.
@@ -268,8 +262,7 @@ class SageIntacctSDK:
         return response["result"]
 
     def get_entity(self, *, object_type: str, fields: List[str]) -> List[Dict]:
-        """
-        Get multiple objects of a single type from Sage Intacct.
+        """Get multiple objects of a single type from Sage Intacct.
 
         Returns:
             List of Dict in object_type schema.
@@ -312,8 +305,7 @@ class SageIntacctSDK:
         return total_intacct_objects
 
     def get_sample(self, intacct_object: str):
-        """
-        Get a sample of data from an endpoint, useful for determining schemas.
+        """Get a sample of data from an endpoint, useful for determining schemas.
         Returns:
             List of Dict in objects schema.
         """
@@ -329,8 +321,7 @@ class SageIntacctSDK:
         return self.format_and_send_request(data)["data"][intacct_object.lower()]
 
     def get_definition(self, intacct_object: str):
-        """
-        Get a sample of data from an endpoint, useful for determining schemas.
+        """Get a sample of data from an endpoint, useful for determining schemas.
         Returns:
             List of Dict in objects schema.
         """
@@ -340,8 +331,7 @@ class SageIntacctSDK:
         return response
 
     def get_data(self, intacct_object: str):
-        """
-        Get a sample of data from an endpoint, useful for determining schemas.
+        """Get a sample of data from an endpoint, useful for determining schemas.
         Returns:
             List of Dict in objects schema.
         """
@@ -351,9 +341,7 @@ class SageIntacctSDK:
         return response
 
     def post_journal(self, journal):
-        """
-        Post journal to Intacct
-        """
+        """Post journal to Intacct"""
         data = {"create": {"object": "GLBATCH", "GLBATCH": journal}}
 
         response = self.format_and_send_request(data)
@@ -377,9 +365,7 @@ def get_client(
     headers: Dict,
     entity_id: str,
 ) -> SageIntacctSDK:
-    """
-    Initializes and returns a SageIntacctSDK object.
-    """
+    """Initializes and returns a SageIntacctSDK object."""
     connection = SageIntacctSDK(
         api_url=api_url,
         company_id=company_id,
