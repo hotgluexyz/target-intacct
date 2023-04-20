@@ -1,6 +1,4 @@
-"""
-Sage Intacct SDK Exceptions
-"""
+"""Sage Intacct SDK Exceptions."""
 
 
 class SageIntacctSDKError(Exception):
