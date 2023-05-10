@@ -1,3 +1,4 @@
+from datetime import datetime
 import json
 import sys
 
@@ -155,7 +156,7 @@ def build_lines(
     # Create the entry
     entry = {
         "JOURNAL": row.get("Journal", "PYRJ"),
-        "BATCH_DATE": row["Transaction Date"],
+        "BATCH_DATE": datetime.now().strftime("%m/%d/%Y"),
         "REVERSEDDATE": row["Transaction Date"],
         "BATCH_TITLE": object_name,
         "ENTRIES": {"GLENTRY": line_items},

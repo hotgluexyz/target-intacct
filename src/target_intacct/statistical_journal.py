@@ -1,3 +1,4 @@
+from datetime import datetime
 import json
 import sys
 
@@ -5,7 +6,7 @@ import pandas as pd
 
 import singer
 
-from .utils import format_date_to_intacct, get_input, set_journal_entry_value
+from .utils import get_input, set_journal_entry_value
 
 logger = singer.get_logger()
 
@@ -137,7 +138,7 @@ def build_lines(
     # Create the entry
     entry = {
         "JOURNAL": row.get("Journal", "STJ"),
-        "BATCH_DATE": format_date_to_intacct(row["whencreated"]),
+        "BATCH_DATE": datetime.now().strftime("%m/%d/%Y"),
         "BATCH_TITLE": "HOURS_PER_WEEK_DENOMINATOR",
         "ENTRIES": {"GLENTRY": line_items},
     }

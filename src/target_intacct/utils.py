@@ -9,13 +9,6 @@ import singer
 logger = singer.get_logger()
 
 
-def format_date_to_intacct(date_string):
-    """Format inputted datetime to Intacct standard."""
-
-    date_object = datetime.fromisoformat(date_string)
-    return date_object.strftime("%m/%d/%Y")
-
-
 def get_input():
     """Read the input from the pipeline and return a dictionary of the Records."""
     input = io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8")
