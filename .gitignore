@@ -112,3 +112,5 @@ state.json.tmp
 state.json
 
 tests/
+
+.secrets/*

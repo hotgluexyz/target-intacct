@@ -148,39 +148,45 @@ class SageIntacctSDK:
                     parsed_response['response']['errormessage']
                 )
                 raise WrongParamsError(
-                    'Some of the parameters are wrong', exception_msg
+                    "Some of the parameters are wrong: {0}".format(exception_msg),
+                    exception_msg,
                 )
 
             if api_response['authentication']['status'] == 'failure':
                 raise InvalidTokenError(
-                    'Invalid token / Incorrect credentials',
-                    api_response['errormessage'],
+                    "Invalid token / Incorrect credentials: {0}".format(
+                        api_response["errormessage"]
+                    ),
+                    api_response["errormessage"],
                 )
 
             if api_response['result']['status'] == 'success':
                 return api_response
 
         if response.status_code == 400:
-            raise WrongParamsError('Some of the parameters are wrong', parsed_response)
+            raise WrongParamsError(
+                "Some of the parameters are wrong: {0}".format(parsed_response),
+                parsed_response,
+            )
 
         if response.status_code == 401:
             raise InvalidTokenError(
-                'Invalid token / Incorrect credentials', parsed_response
+                "Invalid token / Incorrect credentials: {0}".format(parsed_response), parsed_response
             )
 
         if response.status_code == 403:
             raise NoPrivilegeError(
-                'Forbidden, the user has insufficient privilege', parsed_response
+                "Forbidden, the user has insufficient privilege: {0}".format(parsed_response), parsed_response
             )
 
         if response.status_code == 404:
-            raise NotFoundItemError('Not found item with ID', parsed_response)
+            raise NotFoundItemError("Not found item with ID: {0}".format(parsed_response), parsed_response)
 
         if response.status_code == 498:
-            raise ExpiredTokenError('Expired token, try to refresh it', parsed_response)
+            raise ExpiredTokenError("Expired token, try to refresh it: {0}".format(parsed_response), parsed_response)
 
         if response.status_code == 500:
-            raise InternalServerError('Internal server error', parsed_response)
+            raise InternalServerError("Internal server error: {0}".format(parsed_response), parsed_response)
 
         raise SageIntacctSDKError('Error: {0}'.format(parsed_response))
 
