@@ -128,6 +128,15 @@ def load_journal_entries(config, accounts, classes, customers, locations, depart
             if row.get('Currency') is not None:
                 je_detail['CURRENCY'] = row['Currency']
 
+            # Support dynamic custom fields on Journal Entry Line level
+            custom_fields = config.get("custom_fields") or []
+
+            for entry in custom_fields:
+                value = row.get(entry.get("input_id"))
+                intacct_id = entry.get("intacct_id")
+                if not pd.isna(value):
+                    je_detail[intacct_id] = value
+
             # Create the line item
             line_items.append(je_detail)
 
