@@ -25,6 +25,7 @@ from target_intacct.exceptions import (
 
 from .const import GET_BY_DATE_FIELD, INTACCT_OBJECTS
 
+logger = singer.get_logger()
 
 def _format_date_for_intacct(datetime: dt.datetime) -> str:
     """
@@ -134,6 +135,7 @@ class SageIntacctSDK:
         api_headers = {'content-type': 'application/xml'}
         api_headers.update(self.__headers)
         body = xmltodict.unparse(dict_body)
+        logger.info(f"Making request to {api_url} with body=[{body}]")
         response = requests.post(api_url, headers=api_headers, data=body)
 
         parsed_xml = xmltodict.parse(response.text)
