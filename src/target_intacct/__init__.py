@@ -131,9 +131,9 @@ def load_journal_entries(config, accounts, classes, customers, locations, depart
             # Support dynamic custom fields on Journal Entry Line level
             custom_fields = config.get("custom_fields") or []
 
-            for entry in custom_fields:
-                value = row.get(entry.get("input_id"))
-                intacct_id = entry.get("intacct_id")
+            for ce in custom_fields:
+                value = row.get(ce.get("input_id"))
+                intacct_id = ce.get("intacct_id")
                 if not pd.isna(value):
                     je_detail[intacct_id] = value
 
@@ -149,6 +149,15 @@ def load_journal_entries(config, accounts, classes, customers, locations, depart
                 'GLENTRY': line_items
             }
         }
+
+        # Support dynamic custom fields on Journal Entry root level
+        custom_fields = config.get("custom_fields") or []
+
+        for ce in custom_fields:
+            value = row.get(ce.get("input_id"))
+            intacct_id = ce.get("intacct_id")
+            if not pd.isna(value):
+                entry[intacct_id] = value
 
         journal_entries.append(entry)
 
