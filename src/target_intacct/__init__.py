@@ -133,7 +133,7 @@ def load_journal_entries(config, accounts, classes, customers, locations, depart
 
             for ce in custom_fields:
                 value = row.get(ce.get("input_id"))
-                intacct_id = ce.get("intacct_id")
+                intacct_id = ce.get("intacct_id").upper()
                 if not pd.isna(value):
                     je_detail[intacct_id] = value
 
@@ -155,7 +155,7 @@ def load_journal_entries(config, accounts, classes, customers, locations, depart
 
         for ce in custom_fields:
             value = row.get(ce.get("input_id"))
-            intacct_id = ce.get("intacct_id")
+            intacct_id = ce.get("intacct_id").upper()
             if not pd.isna(value):
                 entry[intacct_id] = value
 
