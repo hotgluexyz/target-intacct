@@ -11,8 +11,8 @@ import pandas as pd
 import singer
 from singer import metadata
 
-from .client import SageIntacctSDK, get_client
-from .const import DEFAULT_API_URL, KEY_PROPERTIES, REQUIRED_CONFIG_KEYS
+from target_intacct.client import SageIntacctSDK, get_client
+from target_intacct.const import DEFAULT_API_URL, KEY_PROPERTIES, REQUIRED_CONFIG_KEYS
 
 logger = singer.get_logger()
 
@@ -38,7 +38,7 @@ def _get_start(key: str) -> dt.datetime:
     return start
 
 
-def load_journal_entries(config, accounts, classes, customers, locations, departments):
+def load_journal_entries(client, config, accounts, classes, customers, locations, departments):
     # Get input path
     input_path = f"{config['input_path']}/JournalEntries.csv"
     # Read the passed CSV
@@ -133,9 +133,11 @@ def load_journal_entries(config, accounts, classes, customers, locations, depart
 
             for ce in custom_fields:
                 value = row.get(ce.get("input_id"))
+                # NOTE: For a UDD we need to append GLDIM here
                 intacct_id = ce.get("intacct_id").upper()
                 if not pd.isna(value):
-                    je_detail[intacct_id] = value
+                    real_value = client.get_match(intacct_id, f"NAME = '{value}'")['id']
+                    je_detail["GLDIM" + intacct_id] = real_value
 
             # Create the line item
             line_items.append(je_detail)
@@ -149,15 +151,6 @@ def load_journal_entries(config, accounts, classes, customers, locations, depart
                 'GLENTRY': line_items
             }
         }
-
-        # Support dynamic custom fields on Journal Entry root level
-        custom_fields = config.get("custom_fields") or []
-
-        for ce in custom_fields:
-            value = row.get(ce.get("input_id"))
-            intacct_id = ce.get("intacct_id").upper()
-            if not pd.isna(value):
-                entry[intacct_id] = value
 
         journal_entries.append(entry)
 
@@ -188,7 +181,7 @@ def upload(config, intacct_client) -> None:
     departments = intacct_client.get_entity(object_type="departments", fields=["DEPARTMENTID", "TITLE"])
 
     # Load Journal Entries CSV to post + Convert to Intacct format
-    journal_entries = load_journal_entries(config, accounts, classes, customers, locations, departments)
+    journal_entries = load_journal_entries(intacct_client, config, accounts, classes, customers, locations, departments)
 
     # Post the journal entries to Intacct
     for je in journal_entries:

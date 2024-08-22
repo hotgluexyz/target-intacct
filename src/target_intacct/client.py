@@ -344,6 +344,23 @@ class SageIntacctSDK:
 
         return self.format_and_send_request(data)['data'][intacct_object.lower()]
 
+    def get_match(self, intacct_object: str, query: str):
+        """
+        Get a sample of data from an endpoint, useful for determining schemas.
+        Returns:
+            List of Dict in objects schema.
+        """
+        data = {
+            'readByQuery': {
+                'object': intacct_object.upper(),
+                'fields': '*',
+                'query': query,
+                'pagesize': '10',
+            }
+        }
+
+        return self.format_and_send_request(data)['data'][intacct_object.lower()]
+
     def get_definition(self, intacct_object: str):
         """
         Get a sample of data from an endpoint, useful for determining schemas.
