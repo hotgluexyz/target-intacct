@@ -359,7 +359,12 @@ class SageIntacctSDK:
             }
         }
 
-        return self.format_and_send_request(data)['data'][intacct_object.lower()]
+        resp = self.format_and_send_request(data)['data']
+
+        if intacct_object.lower() not in resp:
+            raise Exception(f"Invalid custom_field {intacct_object}. Queried Intacct with [{data}] and got resp=[{resp}]")
+
+        return resp[intacct_object.lower()]
 
     def get_definition(self, intacct_object: str):
         """
