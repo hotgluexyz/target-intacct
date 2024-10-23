@@ -52,13 +52,24 @@ def load_journal_entries(client, config, accounts, classes, customers, locations
         sys.exit(1)
 
     journal_entries = []
-    errored = False
 
-    def build_lines(x):
+    def build_lines(x: pd.DataFrame):
         # Get the journal entry id
-        je_id = x['Journal Entry Id'].iloc[0]
+        journal_entry_id = x.get('Journal Entry Id').dropna()
+        if journal_entry_id.empty:
+            journal = x.get('Journal').dropna()
+            if journal.empty:
+                error_message = "Journal Entry Id and Journal are missing on JournalEntries.csv!"
+            else:
+                error_message = f"Journal Entry Id is missing on Journal Entry {journal.iloc[0]}!"
+            logger.error(error_message)
+            raise Exception("Building JournalEntries failed!")
+
+
+        je_id = journal_entry_id.iloc[0]
         logger.info(f"Converting {je_id}...")
         line_items = []
+        missing_fields = []
 
         # Create line items
         for index, row in x.iterrows():
@@ -77,8 +88,8 @@ def load_journal_entries(client, config, accounts, classes, customers, locations
             if acct_ref is not None:
                 je_detail["ACCOUNTNO"] = acct_ref
             else:
-                errored = True
                 logger.error(f"Account is missing on Journal Entry {je_id}! Name={acct_name} No={acct_num}")
+                raise Exception("Building JournalEntries failed!")
 
             # Get the Class Ref
             class_name = row['Class']
@@ -97,7 +108,7 @@ def load_journal_entries(client, config, accounts, classes, customers, locations
                 if location_ref is not None:
                     je_detail["LOCATION"] = location_ref
                 else:
-                    logger.warning(f"Location is missing on Journal Entry {je_id}! Name={location_name}")
+                    missing_fields.append(f"Location is missing on Journal Entry {je_id}! Name={location_name}")
 
             # Get the Department Ref if Department column exist
             if 'Department' in row.index:
@@ -107,7 +118,7 @@ def load_journal_entries(client, config, accounts, classes, customers, locations
                 if department_ref is not None:
                     je_detail["DEPARTMENT"] = department_ref
                 else:
-                    logger.warning(f"Department is missing on Journal Entry {je_id}! Name={department_name}")
+                    missing_fields.append(f"Department is missing on Journal Entry {je_id}! Name={department_name}")
 
             # Get the Quickbooks Customer
             if 'Customer ID' in row.index:
@@ -115,14 +126,14 @@ def load_journal_entries(client, config, accounts, classes, customers, locations
                 if customer_id is not None:
                     je_detail["CUSTOMERID"] = customer_id
                 else:
-                    logger.warning(f"Customer ID is missing on Journal Entry {je_id}! Name={customer_id}")
+                    missing_fields.append(f"Customer ID is missing on Journal Entry {je_id}! Name={customer_id}")
             elif 'Customer Name' in row.index:
                 customer_name = row['Customer Name']
                 customer_ref = next((x['CUSTOMERID'] for x in customers if x['NAME'] == customer_name), None)
                 if customer_ref is not None:
                     je_detail["CUSTOMERID"] = customer_ref
                 else:
-                    logger.warning(f"Customer is missing on Journal Entry {je_id}! Name={customer_name}")
+                    missing_fields.append(f"Customer is missing on Journal Entry {je_id}! Name={customer_name}")
 
             # Append the currency if provided
             if row.get('Currency') is not None:
@@ -136,8 +147,14 @@ def load_journal_entries(client, config, accounts, classes, customers, locations
                 # NOTE: For a UDD we need to append GLDIM here
                 intacct_id = ce.get("intacct_id").upper()
                 if not pd.isna(value):
-                    real_value = client.get_match(intacct_id, f"NAME = '{value}'")['id']
-                    je_detail["GLDIM" + intacct_id] = real_value
+                    match = client.get_match(intacct_id, f"NAME = '{value}'")
+                    if "id" in match:
+                        logger.info(f"Custom field {value} is supported for {ce.get('intacct_id')} table!")
+                        real_value = match['id']
+                        je_detail["GLDIM" + intacct_id] = real_value
+                    else:
+                        logger.error(f"Custom field {value} is not supported for {ce.get('intacct_id')} table!")
+                        raise Exception("Building JournalEntries failed!")
 
             # Create the line item
             line_items.append(je_detail)
@@ -152,13 +169,14 @@ def load_journal_entries(client, config, accounts, classes, customers, locations
             }
         }
 
+        if missing_fields:
+            logger.warning(f"Missing fields for Journal Entry {je_id}: {', '.join(missing_fields)}")
+
         journal_entries.append(entry)
 
-    # Build the entries
-    df.groupby("Journal Entry Id").apply(build_lines)
 
-    if errored:
-        raise Exception("Building QBO JournalEntries failed!")
+    # Build the entries
+    df.groupby("Journal Entry Id").apply(build_lines)    
 
     # Print journal entries
     logger.info(f"Loaded {len(journal_entries)} journal entries to post")
@@ -166,7 +184,7 @@ def load_journal_entries(client, config, accounts, classes, customers, locations
     return journal_entries
 
 
-def upload(config, intacct_client) -> None:
+def upload(config, intacct_client: SageIntacctSDK) -> None:
     """
     Syncs all streams selected in Context.catalog.
     Writes out state file for events stream once sync completed.
