@@ -136,8 +136,12 @@ def load_journal_entries(client, config, accounts, classes, customers, locations
                 # NOTE: For a UDD we need to append GLDIM here
                 intacct_id = ce.get("intacct_id").upper()
                 if not pd.isna(value):
-                    real_value = client.get_match(intacct_id, f"NAME = '{value}'")['id']
-                    je_detail["GLDIM" + intacct_id] = real_value
+                    try:
+                        real_value = client.get_match(intacct_id, f"NAME = '{value}'")['id']
+                        je_detail["GLDIM" + intacct_id] = real_value
+                    except:
+                        logger.warning(f"Failed to get a match for {intacct_id} where NAME = '{value}'. Assuming free text input.")
+                        je_detail[intacct_id] = value
 
             # Create the line item
             line_items.append(je_detail)
