@@ -38,7 +38,7 @@ def _get_start(key: str) -> dt.datetime:
     return start
 
 
-def load_journal_entries(client, config, accounts, classes, customers, locations, departments):
+def load_journal_entries(client, config, accounts, classes, customers, locations, departments, items):
     # Get input path
     input_path = f"{config['input_path']}/JournalEntries.csv"
     # Read the passed CSV
@@ -127,6 +127,18 @@ def load_journal_entries(client, config, accounts, classes, customers, locations
             # Append the currency if provided
             if row.get('Currency') is not None:
                 je_detail['CURRENCY'] = row['Currency']
+            
+            # Append item if provided
+            if row.get('Item ID') is not None:
+                je_detail['ITEMID'] = row['Item ID']
+            elif "Item" in row.index:
+                item = row['Item']
+                item_ref = next((x['ITEMID'] for x in items if x['NAME'] == item), None)
+                if item_ref is not None:
+                    je_detail["ITEMID"] = item_ref
+                else:
+                    logger.warning(f"Item is missing on Journal Entry {je_id}! Name={item}")
+
 
             # Support dynamic custom fields on Journal Entry Line level
             custom_fields = config.get("custom_fields") or []
@@ -183,9 +195,9 @@ def upload(config, intacct_client) -> None:
     customers = intacct_client.get_entity(object_type="customers", fields=["CUSTOMERID", "NAME"])
     locations = intacct_client.get_entity(object_type="locations", fields=["LOCATIONID", "NAME"])
     departments = intacct_client.get_entity(object_type="departments", fields=["DEPARTMENTID", "TITLE"])
-
+    items = intacct_client.get_entity(object_type="items", fields=["ITEMID", "NAME"])
     # Load Journal Entries CSV to post + Convert to Intacct format
-    journal_entries = load_journal_entries(intacct_client, config, accounts, classes, customers, locations, departments)
+    journal_entries = load_journal_entries(intacct_client, config, accounts, classes, customers, locations, departments, items)
 
     # Post the journal entries to Intacct
     for je in journal_entries:

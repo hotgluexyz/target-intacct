@@ -28,7 +28,8 @@ INTACCT_OBJECTS = {
     "customers": "CUSTOMER",
     "classes": "CLASS",
     "locations": "LOCATION",
-    "departments": "DEPARTMENT"
+    "departments": "DEPARTMENT",
+    "items": "ITEM"
 }
 
 GET_BY_DATE_FIELD = "WHENMODIFIED"
