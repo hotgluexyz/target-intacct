@@ -42,3 +42,8 @@ class NotFoundItemError(SageIntacctSDKError):
 
 class InternalServerError(SageIntacctSDKError):
     """The rest SageIntacctSDK errors, 500 error."""
+
+
+class RetryableIntacctError(SageIntacctSDKError):
+    """A temporary error on Intacct's side (gateway GW-nnnn failures, rate
+    limits, upstream 5xx) that is safe to retry."""
