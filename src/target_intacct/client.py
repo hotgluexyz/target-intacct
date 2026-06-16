@@ -4,10 +4,12 @@ API Base class with util functions
 import datetime as dt
 import json
 import re
+import sys
 import uuid
 from typing import Dict, List, Union
 from urllib.parse import unquote
 
+import backoff
 import requests
 import xmltodict
 
@@ -19,6 +21,7 @@ from target_intacct.exceptions import (
     InvalidTokenError,
     NoPrivilegeError,
     NotFoundItemError,
+    RetryableIntacctError,
     SageIntacctSDKError,
     WrongParamsError,
 )
@@ -26,6 +29,40 @@ from target_intacct.exceptions import (
 from .const import GET_BY_DATE_FIELD, INTACCT_OBJECTS
 
 logger = singer.get_logger()
+
+GATEWAY_ERROR_PATTERN = re.compile(r'^GW-\d+$')
+
+RETRYABLE_STATUS_CODES = (429, 502, 503, 504)
+
+MAX_RETRIES = 5
+
+
+def _log_retry(details):
+    _, exc, _ = sys.exc_info()
+    logger.info(
+        'Temporary Intacct API error: %s. Retrying in %.1f seconds (attempt %d of %d)...',
+        exc,
+        details['wait'],
+        details['tries'],
+        MAX_RETRIES,
+    )
+
+
+def _has_temporary_error(parsed_response: Dict) -> bool:
+    """Returns True when the parsed response contains a gateway (GW-nnnn) error."""
+    try:
+        errors = parsed_response['response']['errormessage']['error']
+    except (KeyError, TypeError):
+        return False
+
+    if isinstance(errors, dict):
+        errors = [errors]
+
+    return any(
+        GATEWAY_ERROR_PATTERN.match(error.get('errorno') or '')
+        for error in errors
+        if isinstance(error, dict)
+    )
 
 def _format_date_for_intacct(datetime: dt.datetime) -> str:
     """
@@ -119,6 +156,13 @@ class SageIntacctSDK:
         else:
             raise SageIntacctSDKError('Error: {0}'.format(response['errormessage']))
 
+    @backoff.on_exception(
+        backoff.expo,
+        (RetryableIntacctError, requests.exceptions.ConnectionError),
+        max_tries=MAX_RETRIES,
+        factor=2,
+        on_backoff=_log_retry,
+    )
     @singer.utils.ratelimit(10, 1)
     def _post_request(self, dict_body: dict, api_url: str) -> Dict:
         """
@@ -138,8 +182,30 @@ class SageIntacctSDK:
         logger.info(f"Making request to {api_url} with body=[{body}]")
         response = requests.post(api_url, headers=api_headers, data=body)
 
-        parsed_xml = xmltodict.parse(response.text)
+        try:
+            parsed_xml = xmltodict.parse(response.text)
+        except Exception:
+            # Gateway/proxy failures can return non-XML bodies (e.g. HTML error pages)
+            if response.status_code in RETRYABLE_STATUS_CODES:
+                raise RetryableIntacctError(
+                    'Temporary Intacct API error (HTTP {0}): {1}'.format(
+                        response.status_code, response.text
+                    ),
+                    response.text,
+                )
+            raise SageIntacctSDKError(
+                'Unable to parse Intacct response (HTTP {0}): {1}'.format(
+                    response.status_code, response.text
+                ),
+                response.text,
+            )
+
         parsed_response = json.loads(json.dumps(parsed_xml))
+
+        if response.status_code in RETRYABLE_STATUS_CODES or _has_temporary_error(parsed_response):
+            raise RetryableIntacctError(
+                'Temporary Intacct API error: {0}'.format(parsed_response), parsed_response
+            )
 
         if response.status_code == 200:
             if parsed_response['response']['control']['status'] == 'success':
