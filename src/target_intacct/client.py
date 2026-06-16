@@ -4,6 +4,7 @@ API Base class with util functions
 import datetime as dt
 import json
 import re
+import time
 import uuid
 from typing import Dict, List, Union
 from urllib.parse import unquote
@@ -20,12 +21,19 @@ from target_intacct.exceptions import (
     NoPrivilegeError,
     NotFoundItemError,
     SageIntacctSDKError,
+    TemporaryGatewayError,
     WrongParamsError,
 )
 
 from .const import GET_BY_DATE_FIELD, INTACCT_OBJECTS
 
 logger = singer.get_logger()
+
+TEMPORARY_GATEWAY_ERROR_CODE = 'GW-0001'
+TEMPORARY_GATEWAY_ERROR_MESSAGE = 'Unable to process request'
+SESSION_RETRY_ATTEMPTS = 4
+SESSION_RETRY_BACKOFF_SECONDS = 1
+
 
 def _format_date_for_intacct(datetime: dt.datetime) -> str:
     """
@@ -79,45 +87,60 @@ class SageIntacctSDK:
         """
         Sets the session id for APIs
         """
+        for attempt in range(1, SESSION_RETRY_ATTEMPTS + 1):
+            try:
+                timestamp = dt.datetime.now()
+                dict_body = {
+                    'request': {
+                        'control': {
+                            'senderid': self.__sender_id,
+                            'password': self.__sender_password,
+                            'controlid': timestamp,
+                            'uniqueid': False,
+                            'dtdversion': 3.0,
+                            'includewhitespace': False,
+                        },
+                        'operation': {
+                            'authentication': {
+                                'login': {
+                                    'userid': user_id,
+                                    'companyid': company_id,
+                                    'password': user_password,
+                                }
+                            },
+                            'content': {
+                                'function': {
+                                    '@controlid': str(uuid.uuid4()),
+                                    'getAPISession': None,
+                                }
+                            },
+                        },
+                    }
+                }
 
-        timestamp = dt.datetime.now()
-        dict_body = {
-            'request': {
-                'control': {
-                    'senderid': self.__sender_id,
-                    'password': self.__sender_password,
-                    'controlid': timestamp,
-                    'uniqueid': False,
-                    'dtdversion': 3.0,
-                    'includewhitespace': False,
-                },
-                'operation': {
-                    'authentication': {
-                        'login': {
-                            'userid': user_id,
-                            'companyid': company_id,
-                            'password': user_password,
-                        }
-                    },
-                    'content': {
-                        'function': {
-                            '@controlid': str(uuid.uuid4()),
-                            'getAPISession': None,
-                        }
-                    },
-                },
-            }
-        }
+                response = self._post_request(dict_body, self.__api_url)
 
-        response = self._post_request(dict_body, self.__api_url)
+                if response['authentication']['status'] == 'success':
+                    session_details = response['result']['data']['api']
+                    self.__api_url = session_details['endpoint']
+                    self.__session_id = session_details['sessionid']
+                    return
 
-        if response['authentication']['status'] == 'success':
-            session_details = response['result']['data']['api']
-            self.__api_url = session_details['endpoint']
-            self.__session_id = session_details['sessionid']
+                raise SageIntacctSDKError('Error: {0}'.format(response['errormessage']))
+            except TemporaryGatewayError as exc:
+                if attempt == SESSION_RETRY_ATTEMPTS:
+                    raise
 
-        else:
-            raise SageIntacctSDKError('Error: {0}'.format(response['errormessage']))
+                sleep_for = SESSION_RETRY_BACKOFF_SECONDS * (2 ** (attempt - 1))
+                logger.warning(
+                    'Temporary Intacct gateway failure while creating API session; '
+                    'retrying in %s second(s) (attempt %s/%s): %s',
+                    sleep_for,
+                    attempt,
+                    SESSION_RETRY_ATTEMPTS,
+                    exc,
+                )
+                time.sleep(sleep_for)
 
     @singer.utils.ratelimit(10, 1)
     def _post_request(self, dict_body: dict, api_url: str) -> Dict:
@@ -152,6 +175,12 @@ class SageIntacctSDK:
                 raise WrongParamsError(
                     "Some of the parameters are wrong: {0}".format(exception_msg),
                     exception_msg,
+                )
+
+            if self._is_temporary_gateway_error(api_response):
+                raise TemporaryGatewayError(
+                    'Temporary Intacct gateway failure: {0}'.format(api_response),
+                    api_response,
                 )
 
             if api_response['authentication']['status'] == 'failure':
@@ -191,6 +220,58 @@ class SageIntacctSDK:
             raise InternalServerError("Internal server error: {0}".format(parsed_response), parsed_response)
 
         raise SageIntacctSDKError('Error: {0}'.format(parsed_response))
+
+    def _error_messages(self, payload: Union[List, Dict, str, None]) -> List[str]:
+        """
+        Flatten nested Intacct error payloads into a list of strings.
+        """
+        if payload is None:
+            return []
+        if isinstance(payload, str):
+            return [payload]
+        if isinstance(payload, list):
+            messages = []
+            for item in payload:
+                messages.extend(self._error_messages(item))
+            return messages
+        if isinstance(payload, dict):
+            messages = []
+            for key in ('errorno', 'description', 'description2', 'message'):
+                value = payload.get(key)
+                if value:
+                    messages.extend(self._error_messages(value))
+            if 'error' in payload:
+                messages.extend(self._error_messages(payload['error']))
+            if 'errormessage' in payload:
+                messages.extend(self._error_messages(payload['errormessage']))
+            if 'response' in payload:
+                messages.extend(self._error_messages(payload['response']))
+            if 'operation' in payload:
+                messages.extend(self._error_messages(payload['operation']))
+            if 'result' in payload:
+                messages.extend(self._error_messages(payload['result']))
+            if 'authentication' in payload:
+                messages.extend(self._error_messages(payload['authentication']))
+            return messages
+        return [str(payload)]
+
+    def _is_temporary_gateway_error(self, payload: Union[List, Dict, str, None]) -> bool:
+        """
+        Detect temporary Intacct gateway failures that should be retried.
+        """
+        normalized_messages = [
+            message.lower() for message in self._error_messages(payload) if message
+        ]
+        return (
+            any(
+                TEMPORARY_GATEWAY_ERROR_CODE.lower() in message
+                for message in normalized_messages
+            )
+            and any(
+                TEMPORARY_GATEWAY_ERROR_MESSAGE.lower() in message
+                for message in normalized_messages
+            )
+        )
 
     def support_id_msg(self, errormessages) -> Union[List, Dict]:
         """
