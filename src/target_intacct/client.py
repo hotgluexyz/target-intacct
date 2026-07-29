@@ -100,7 +100,7 @@ class SageIntacctSDK:
         self.__user_id = user_id
         self.__user_password = user_password
         self.__headers = headers
-        
+
         """
         Initialize connection to Sage Intacct
         :param sender_id: Sage Intacct sender id
