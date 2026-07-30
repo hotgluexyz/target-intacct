@@ -90,6 +90,10 @@ class SageIntacctSDK:
         headers: Dict,
     ):
         self.__api_url = api_url
+        self.__gateway_url = api_url
+        #__gateway_url keeps the original URL; 
+        # __api_url stays the mutable session endpoint. 
+        # Without this split, the second login would POST credentials to the wrong host after the first auth.
         self.__company_id = company_id
         self.__sender_id = sender_id
         self.__sender_password = sender_password
@@ -112,12 +116,29 @@ class SageIntacctSDK:
             user_password=self.__user_password,
         )
 
-    def _set_session_id(self, user_id: str, company_id: str, user_password: str):
+    def _set_session_id(
+        self,
+        user_id: str,
+        company_id: str,
+        user_password: str,
+        location_id: str = None,
+    ):
         """
-        Sets the session id for APIs
+        Sets the session id for APIs.
+
+        When location_id is set, Intacct scopes the session to that location entity
+        (subsidiary). Omit it to stay at top-level.
         """
 
         timestamp = dt.datetime.now()
+        login = {
+            'userid': user_id,
+            'companyid': company_id,
+            'password': user_password,
+        }
+        if location_id:
+            login['locationid'] = location_id
+
         dict_body = {
             'request': {
                 'control': {
@@ -130,11 +151,7 @@ class SageIntacctSDK:
                 },
                 'operation': {
                     'authentication': {
-                        'login': {
-                            'userid': user_id,
-                            'companyid': company_id,
-                            'password': user_password,
-                        }
+                        'login': login
                     },
                     'content': {
                         'function': {
@@ -146,7 +163,7 @@ class SageIntacctSDK:
             }
         }
 
-        response = self._post_request(dict_body, self.__api_url)
+        response = self._post_request(dict_body, self.__gateway_url)
 
         if response['authentication']['status'] == 'success':
             session_details = response['result']['data']['api']
@@ -155,6 +172,15 @@ class SageIntacctSDK:
 
         else:
             raise SageIntacctSDKError('Error: {0}'.format(response['errormessage']))
+
+    def use_entity_session(self, location_id: str = None):
+        """Re-authenticate, optionally scoped to a location entity."""
+        self._set_session_id(
+            user_id=self.__user_id,
+            company_id=self.__company_id,
+            user_password=self.__user_password,
+            location_id=location_id,
+        )
 
     @backoff.on_exception(
         backoff.expo,

@@ -38,6 +38,27 @@ def _get_start(key: str) -> dt.datetime:
     return start
 
 
+def _shared_line_location(lines):
+    """Return LOCATION when every line has the same non-empty value, else None."""
+    locs = [line.get('LOCATION') for line in lines]
+    if not locs or any(loc is None for loc in locs):
+        return None
+    unique = set(locs)
+    return unique.pop() if len(unique) == 1 else None
+
+
+def _entity_location_id(location_id, locations):
+    """Map a location (including child locations) to a login-capable entity id."""
+    loc = next((x for x in locations if x.get('LOCATIONID') == str(location_id)), None)
+    if not loc:
+        return location_id
+    # Child locations cannot be used in <locationid>; login as their parent entity.
+    entity = loc.get('ENTITY')
+    if entity and str(entity) != str(location_id):
+        return entity
+    return location_id
+
+
 def load_journal_entries(client, config, accounts, classes, customers, locations, departments, items):
     # Get input path
     input_path = f"{config['input_path']}/JournalEntries.csv"
@@ -193,14 +214,34 @@ def upload(config, intacct_client) -> None:
     accounts = intacct_client.get_entity(object_type="general_ledger_accounts", fields=["RECORDNO", "ACCOUNTNO", "TITLE"])
     classes = intacct_client.get_entity(object_type="classes", fields=["RECORDNO", "CLASSID", "NAME"])
     customers = intacct_client.get_entity(object_type="customers", fields=["CUSTOMERID", "NAME"])
-    locations = intacct_client.get_entity(object_type="locations", fields=["LOCATIONID", "NAME"])
+    locations = intacct_client.get_entity(object_type="locations", fields=["LOCATIONID", "NAME", "ENTITY"])
     departments = intacct_client.get_entity(object_type="departments", fields=["DEPARTMENTID", "TITLE"])
     items = intacct_client.get_entity(object_type="items", fields=["ITEMID", "NAME"])
     # Load Journal Entries CSV to post + Convert to Intacct format
     journal_entries = load_journal_entries(intacct_client, config, accounts, classes, customers, locations, departments, items)
 
-    # Post the journal entries to Intacct
+    # post_to_top_level=true keeps legacy top-level login. Default false: when every
+    # line on a journal shares a location, re-login with that location entity.
+    post_to_top_level = config.get('post_to_top_level', False)
+    session_location = None  # None == top-level session from initial login
+
     for je in journal_entries:
+        if not post_to_top_level:
+            shared = _shared_line_location(je['ENTRIES']['GLENTRY'])
+            entity_id = _entity_location_id(shared, locations) if shared else None
+            if entity_id != session_location:
+                if entity_id:
+                    logger.info(
+                        f"Journal {je['BATCH_TITLE']}: all lines share location "
+                        f"{shared}; logging in with locationid={entity_id}"
+                    )
+                else:
+                    logger.info(
+                        f"Journal {je['BATCH_TITLE']}: lines do not share a single "
+                        f"location; posting at top-level"
+                    )
+                intacct_client.use_entity_session(entity_id)
+                session_location = entity_id
         intacct_client.post_journal(je)
 
     logger.info('Upload completed')
