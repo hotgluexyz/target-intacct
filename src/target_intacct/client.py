@@ -14,6 +14,7 @@ import requests
 import xmltodict
 
 import singer
+from copy import deepcopy
 
 from target_intacct.exceptions import (
     ExpiredTokenError,
@@ -254,7 +255,7 @@ class SageIntacctSDK:
         api_headers = {'content-type': 'application/xml'}
         api_headers.update(self.__headers)
         body = xmltodict.unparse(dict_body)
-        logger.info(f"Making request to {api_url} with body=[{self.clean_creds('request', dict_body)}]")
+        logger.info(f"Making request to {api_url} with body=[{self.clean_creds('request', deepcopy(dict_body))}]")
         response = requests.post(api_url, headers=api_headers, data=body)
 
         try:
