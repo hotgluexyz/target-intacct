@@ -14,6 +14,7 @@ import requests
 import xmltodict
 
 import singer
+from copy import deepcopy
 
 from target_intacct.exceptions import (
     ExpiredTokenError,
@@ -181,6 +182,55 @@ class SageIntacctSDK:
             user_password=self.__user_password,
             location_id=location_id,
         )
+    
+    def clean_creds_xml(self, body: str):
+        """
+        Clean credentials from the request body.
+        Parameters:
+            key_field (str): The key field to clean credentials from.
+            request_body (dict): The request body to clean credentials from.
+
+        Returns:
+            The request body with cleaned credentials.
+        """
+        scrub = ["senderid", "userid", "companyid", "password", "sessionid", "sessiontimestamp"]
+        import re
+        for scrub_item in scrub:
+            # Scrub inside XML tags: <item>value</item>
+            body = re.sub(
+                rf'(<{scrub_item}>)(.*?)(</{scrub_item}>)',
+                rf'\1***\3',
+                body,
+                flags=re.IGNORECASE
+            )
+
+        return body
+
+    def clean_creds(self, key_field: str, request_body: dict):
+        """
+        Clean credentials from the request body.
+        Parameters:
+            key_field (str): The key field to clean credentials from.
+            request_body (dict): The request body to clean credentials from.
+
+        Returns:
+            The request body with cleaned credentials.
+        """
+        not_scrub = ["status"]
+        request_body = request_body.copy()
+        if request_body.get(key_field, {}).get("control", {}):
+            for key, _ in request_body[key_field]["control"].items():
+                if key in not_scrub:
+                    continue
+                request_body[key_field]["control"][key] = "***"
+        
+        if request_body.get(key_field, {}).get("operation", {}).get("authentication", {}):
+            for key, _ in request_body[key_field]["operation"]["authentication"].items():
+                if key in not_scrub:
+                    continue
+                request_body[key_field]["operation"]["authentication"][key] = "***"
+        
+        return request_body
 
     @backoff.on_exception(
         backoff.expo,
@@ -205,7 +255,7 @@ class SageIntacctSDK:
         api_headers = {'content-type': 'application/xml'}
         api_headers.update(self.__headers)
         body = xmltodict.unparse(dict_body)
-        logger.info(f"Making request to {api_url} with body=[{body}]")
+        logger.info(f"Making request to {api_url} with body=[{self.clean_creds('request', deepcopy(dict_body))}]")
         response = requests.post(api_url, headers=api_headers, data=body)
 
         try:
@@ -227,6 +277,7 @@ class SageIntacctSDK:
             )
 
         parsed_response = json.loads(json.dumps(parsed_xml))
+        parsed_response = self.clean_creds('response', parsed_response)
 
         if response.status_code in RETRYABLE_STATUS_CODES or _has_temporary_error(parsed_response):
             raise RetryableIntacctError(
