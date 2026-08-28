@@ -18,9 +18,9 @@ setup(
     install_requires=[
         'backoff',
         'requests>=2.20.0',
-        
-        'pandas==1.3.5; python_version < "3.8"',
-        'pandas>=2.3.3; python_version >= "3.8"',
+
+        'pandas==1.3.5; python_version < "3.9"',
+        'pandas>=2.3.3; python_version >= "3.9"',
 
         'singer-python>=5.0.12',
         'xmltodict==0.12.0',
