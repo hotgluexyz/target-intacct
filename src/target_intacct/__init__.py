@@ -75,9 +75,7 @@ def load_journal_entries(client, config, accounts, classes, customers, locations
     journal_entries = []
     errored = False
 
-    def build_lines(x):
-        # Get the journal entry id
-        je_id = x['Journal Entry Id'].iloc[0]
+    def build_lines(x, je_id):
         logger.info(f"Converting {je_id}...")
         line_items = []
 
@@ -191,8 +189,9 @@ def load_journal_entries(client, config, accounts, classes, customers, locations
 
         journal_entries.append(entry)
 
-    # Build the entries
-    df.groupby("Journal Entry Id").apply(build_lines)
+    # Build the entries (explicit loop: pandas 2.2+ drops group keys in apply)
+    for je_id, group in df.groupby("Journal Entry Id"):
+        build_lines(group, je_id)
 
     if errored:
         raise Exception("Building QBO JournalEntries failed!")

@@ -2,6 +2,10 @@
 
 This is a [hotglue](https://hotglue.xyz) target that sends CSV data back to Sage Intacct.
 
+## Requirements
+
+Tested on Python 3.7, 3.10, and 3.14. Python 3.7 is end-of-life; upstream dependencies may drop support for it in future releases.
+
 ## Quick Start
 
 1. Install
