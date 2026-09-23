@@ -1,0 +1,22 @@
+{
+    "id": null,
+    "name": "CORP-VISA-001",
+    "description": "Corporate travel Visa",
+    "cardType": "visa",
+    "accountType": "credit",
+    "expirationMonth": "12",
+    "expirationYear": "2028",
+    "active": true,
+    "vendorId": "VISA-VENDOR",
+    "offsetGlAccountId": "2000",
+    "locationId": "1",
+    "billingAddress": {
+        "line1": "300 Park Ave",
+        "line2": "Suite 1400",
+        "city": "San Jose",
+        "state": "CA",
+        "postalCode": "95110",
+        "country": "United States",
+        "countryCode": "US"
+    }
+}

@@ -1,0 +1,26 @@
+{
+    // Use IntelliSense para saber los atributos posibles.
+    // Mantenga el puntero para ver las descripciones de los existentes atributos.
+    // Para más información, visite: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "target-intacct",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "../target_intacct/target.py",
+            "cwd": "${workspaceFolder}/.secrets",
+            "args": [
+                "<",
+                "data.singer",
+                "--config",
+                "config.json",
+                ">",
+                "target_state.json"
+            ],
+            "python": "${workspaceFolder}/.venv/bin/python", // TODO: Add the actual path to the Python interpreter 
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+    ]
+}

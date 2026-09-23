@@ -1,0 +1,47 @@
+ci:
+  autofix_prs: true
+  autofix_commit_msg: "style: pre-commit fixes"
+  autoupdate_schedule: monthly
+  autoupdate_commit_msg: 'chore: pre-commit autoupdate'
+
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v6.0.0
+  hooks:
+  - id: check-json
+    exclude: |
+      (?x)^(
+        .*/launch.json
+      )$
+  - id: check-toml
+  - id: check-yaml
+  - id: end-of-file-fixer
+  - id: trailing-whitespace
+
+- repo: https://github.com/zizmorcore/zizmor-pre-commit
+  rev: v1.24.1
+  hooks:
+  - id: zizmor
+
+- repo: https://github.com/python-jsonschema/check-jsonschema
+  rev: 0.37.1
+  hooks:
+  - id: check-dependabot
+  - id: check-github-workflows
+
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  rev: v0.15.10
+  hooks:
+  - id: ruff-check
+  - id: ruff-format
+
+- repo: https://github.com/astral-sh/uv-pre-commit
+  rev: 0.11.6
+  hooks:
+  - id: uv-lock
+  - id: uv-sync
+
+- repo: https://github.com/hukkin/mdformat
+  rev: 1.0.0
+  hooks:
+  - id: mdformat

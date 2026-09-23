@@ -1,0 +1,12 @@
+{
+    "bankAccountId": "BOV",
+    "feedDate": "2020-05-15",
+    "postingDate": "2020-04-09",
+    "transactionType": "withdrawal",
+    "documentType": "Check",
+    "documentNumber": "198",
+    "amount": -184.00,
+    "description": "Office supplies",
+    "payee": "Office Depot",
+    "currency": "USD"
+}

@@ -1,0 +1,18 @@
+{
+    "transactionDate": "2025-04-11",
+    "creditCardAccountId": "CORP-VISA-001",
+    "referenceNumber": "CCTxn-001",
+    "payee": "Airline Co",
+    "description": "Travel expenses",
+    "currency": "USD",
+    "lineItems": [
+        {
+            "amount": 125.5,
+            "glAccountId": "6000",
+            "description": "Flight to SFO",
+            "departmentId": "PS",
+            "locationId": "1",
+            "isBillable": false
+        }
+    ]
+}

@@ -1,0 +1,12 @@
+{
+    "id": null,
+    "name": "test",
+    "accountNumber": "6368098596",
+    "routingNumber": "051502395",
+    "type": "checking",
+    "currency": "USD",
+    "holderName": "Not A Real Company Inc.",
+    "bankName": "Test Bank",
+    "locationId": "1",
+    "glAccountId": "1000"
+}
