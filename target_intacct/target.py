@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from hotglue_singer_sdk import typing as th
 from hotglue_singer_sdk.target_sdk.target import TargetHotglue
-from target_intacct.auth import IntacctAuthenticator
 from target_intacct.client import IntacctRecordSink
 from target_intacct.sinks import BankAccountSink, CreditCardAccountSink, BankTransactionSink, CreditCardTransactionSink
 
@@ -88,12 +87,7 @@ class TargetIntacct(TargetHotglue):
         ),
     ).to_dict()
 
-    @classmethod
-    def access_token_support(cls, connector=None):
-        return (
-            IntacctAuthenticator,
-            "https://api.intacct.com/ia/api/v1/oauth2/token",
-        )
 
 if __name__ == "__main__":
     TargetIntacct.cli()
+

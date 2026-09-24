@@ -8,6 +8,10 @@ from typing import Any
 from hotglue_singer_sdk.exceptions import FatalAPIError
 from hotglue_singer_sdk.target_sdk.client import HotglueBaseSink, HotglueSink
 
+from target_intacct.auth import IntacctAuthenticator
+
+INTACCT_OAUTH_TOKEN_URL = "https://api.intacct.com/ia/api/v1/oauth2/token"
+
 
 def parse_intacct_error_message(payload: Any) -> str | None:
     """Extract human-readable messages from an Intacct REST error body.
@@ -47,8 +51,11 @@ class IntacctSink(HotglueBaseSink):
 
     @property
     def authenticator(self) -> Any:
-        authenticator, auth_endpoint = self._target.access_token_support(self._target)
-        return authenticator(self._target, self.auth_state, auth_endpoint)
+        # Local Intacct OAuth refresh only — no target.access_token_support
+        # (that enables Hotglue /accesstoken refresh).
+        return IntacctAuthenticator(
+            self._target, self.auth_state, INTACCT_OAUTH_TOKEN_URL
+        )
 
     @property
     def http_headers(self) -> dict:

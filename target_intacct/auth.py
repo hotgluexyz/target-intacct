@@ -19,7 +19,7 @@ class IntacctAuthenticator(OAuthAuthenticator):
         Args:
             target: The Singer target instance.
             state: Authentication state.
-            auth_endpoint: Token endpoint URL (from ``target.access_token_support``).
+            auth_endpoint: Intacct OAuth token endpoint URL.
         """
         super().__init__(target, state, auth_endpoint=auth_endpoint)
 
