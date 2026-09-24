@@ -687,20 +687,6 @@ wheels = [
 ]
 
 [[package]]
-name = "hotglue-models-accounting"
-version = "0.1.0"
-source = { git = "https://gitlab.com/hotglue/hotglue-models-accounting.git?rev=v2#c500e8c422c4a10071c3750066a7c46d1ea0a9b9" }
-dependencies = [
-    { name = "pydantic", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.8'" },
-    { name = "pydantic", version = "2.10.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*'" },
-    { name = "pydantic", version = "2.13.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
-    { name = "simplejson" },
-    { name = "typing-extensions", version = "4.7.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.8'" },
-    { name = "typing-extensions", version = "4.13.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*'" },
-    { name = "typing-extensions", version = "4.16.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
-]
-
-[[package]]
 name = "hotglue-singer-sdk"
 version = "1.0.48"
 source = { registry = "https://pypi.org/simple" }
@@ -2086,7 +2072,6 @@ name = "target-intacct"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "hotglue-models-accounting" },
     { name = "hotglue-singer-sdk" },
     { name = "requests", version = "2.31.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.8'" },
     { name = "requests", version = "2.32.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.8.*'" },
@@ -2107,7 +2092,6 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "hotglue-models-accounting", git = "https://gitlab.com/hotglue/hotglue-models-accounting.git?rev=v2" },
     { name = "hotglue-singer-sdk", specifier = ">=1.0.11" },
     { name = "requests", specifier = ">=2.25.1" },
     { name = "xmltodict", specifier = ">=0.12.0" },

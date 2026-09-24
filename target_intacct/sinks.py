@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from hotglue_models_accounting.accounting import BankAccount
-
 from hotglue_singer_sdk.exceptions import FatalAPIError
 
 from target_intacct.bank_reconciliation import (
@@ -31,9 +29,6 @@ class BankAccountSink(IntacctRecordSink):
 
     name = "BankAccount"
     endpoint = "/objects/cash-management/checking-account"
-    unified_schema = BankAccount
-    # Keep False so Intacct-specific fields (routingNumber, locationId, glAccountId)
-    # are not stripped by unified-schema validation.
     auto_validate_unified_schema = False
 
     @property
