@@ -54,7 +54,27 @@ class BankAccountSchemaMapper:
         if status:
             payload["status"] = status
 
+        # Optional override only — default rule set is assigned via XML after create
+        # (top-level 001 / entity HG-MATCH). Sending REST reconciliation.ruleSet id
+        # "001" fails for entity-owned checking accounts.
+        rule_set = self._map_rule_set()
+        if rule_set:
+            payload["reconciliation"] = {"ruleSet": rule_set}
+
         return payload
+
+    def _map_rule_set(self) -> dict[str, str] | None:
+        for field in ("ruleSetId", "ruleSetKey", "reconciliationRuleSetId"):
+            value = self.record.get(field)
+            if value not in (None, ""):
+                key = "key" if field == "ruleSetKey" else "id"
+                return {key: str(value)}
+
+        rule_set = self.record.get("ruleSet")
+        if isinstance(rule_set, dict):
+            return self._object_ref(rule_set)
+
+        return None
 
     def _resolve_account_type(self) -> str:
         raw_type = (self.record.get("type") or "checking").strip().lower()
